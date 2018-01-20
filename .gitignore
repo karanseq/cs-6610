@@ -35,6 +35,10 @@
 
 # Generated files
 /temp
+/Debug
+/Release
+/CS_6610/Debug
+/CS_6610/Release
 
 # Windows
 #========
