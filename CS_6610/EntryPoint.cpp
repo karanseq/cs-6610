@@ -44,9 +44,14 @@ constexpr double FRAME_RATE = 1.0 / 60.0;
 //~====================================================================================================
 // Counters
 std::chrono::time_point<std::chrono::steady_clock> LAST_DRAW_TIME_POINT;
-float r = 0.0f;
-float g = 0.0f;
-float b = 0.0f;
+bool g_leftMouseButtonPressed = false;
+bool g_rightMouseButtonPressed = false;
+int g_currMouseX = 0;
+int g_currMouseY = 0;
+int g_currMouseZ = 0;
+int g_prevMouseX = 0;
+int g_prevMouseY = 0;
+int g_prevMouseZ = 0;
 
 
 //~====================================================================================================
@@ -76,6 +81,10 @@ std::stringstream g_messageStream;
 void DisplayFunc();
 void IdleFunc();
 void KeyboardFunc(unsigned char key, int x, int y);
+void SpecialFunc(int key, int x, int y);
+void MouseFunc(int button, int state, int x, int y);
+void MotionFunc(int x, int y);
+void MouseWheelFunc(int button, int dir, int x, int y);
 
 // Initialization functions
 void InitMeshes();
@@ -84,7 +93,6 @@ void InitCamera();
 
 // Update functions
 void Update(float DeltaSeconds);
-void AnimateBackgroundColor();
 void GetMatrixFromTransform(cy::Matrix4f& o_Matrix, const Transform& i_transform);
 
 
@@ -128,6 +136,10 @@ int main(int argcp, char** argv)
         glutDisplayFunc(&DisplayFunc);
         glutIdleFunc(&IdleFunc);
         glutKeyboardFunc(&KeyboardFunc);
+        glutSpecialFunc(&SpecialFunc);
+        glutMouseFunc(&MouseFunc);
+        glutMotionFunc(&MotionFunc);
+        glutMouseWheelFunc(&MouseWheelFunc);
     }
 
     // initialize content
@@ -154,7 +166,7 @@ int main(int argcp, char** argv)
 void DisplayFunc()
 {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glClearColor(r, g, b, 1.0f);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
     // draw stuff here!
     {
@@ -202,6 +214,37 @@ void KeyboardFunc(unsigned char key, int x, int y)
     }
 }
 
+void SpecialFunc(int key, int x, int y)
+{
+    if (key == GLUT_KEY_F6)
+    {
+        BuildShaders();
+    }
+}
+
+void MouseFunc(int button, int state, int x, int y)
+{
+    g_leftMouseButtonPressed = button == GLUT_LEFT_BUTTON ? state == GLUT_DOWN : g_leftMouseButtonPressed;
+    g_rightMouseButtonPressed = button == GLUT_RIGHT_BUTTON ? state == GLUT_DOWN : g_rightMouseButtonPressed;
+
+    const bool buttonPressed = g_leftMouseButtonPressed || g_rightMouseButtonPressed;
+    g_currMouseX = buttonPressed ? x : g_currMouseX;
+    g_currMouseY = buttonPressed ? y : g_currMouseY;
+    g_prevMouseX = buttonPressed ? x : g_prevMouseX;
+    g_prevMouseY = buttonPressed ? y : g_prevMouseY;
+}
+
+void MotionFunc(int x, int y)
+{
+    g_currMouseX = x;
+    g_currMouseY = y;
+}
+
+void MouseWheelFunc(int button, int dir, int x, int y)
+{
+    g_currMouseZ += dir * 3;
+}
+
 
 //~====================================================================================================
 // Initialization functions
@@ -241,9 +284,15 @@ void InitMeshes()
 
     // Load the mesh from disk
     g_TriMeshDefault.LoadFromFileObj(DEFAULT_MESH_PATH);
+    if (g_TriMeshDefault.IsBoundBoxReady() == false)
+    {
+        g_TriMeshDefault.ComputeBoundingBox();
+    }
 
     g_meshTransform.Orientation.Zero();
+    g_meshTransform.Orientation.x = -90.0f;
     g_meshTransform.Position.Zero();
+    g_meshTransform.Position.y -= (g_TriMeshDefault.GetBoundMax().z + g_TriMeshDefault.GetBoundMin().z) * 0.5f;
 
     glGenVertexArrays(1, &g_VAODefault);
     glGenBuffers(1, &g_VBODefault);
@@ -279,22 +328,30 @@ void InitCamera()
 
 void Update(float DeltaSeconds)
 {
+    const int deltaMouseX = g_currMouseX - g_prevMouseX;
+    const int deltaMouseY = g_currMouseY - g_prevMouseY;
+    const int deltaMouseZ = g_currMouseZ - g_prevMouseZ;
 
-}
+    // Update camera rotation
+    if (g_leftMouseButtonPressed)
+    {
+        static constexpr float rotationDamping = DEGREES_TO_RADIANS(5.0f);
+        g_cameraTransform.Orientation.y += float(deltaMouseX) * rotationDamping;
+        g_cameraTransform.Orientation.x += float(deltaMouseY) * rotationDamping;
+    }
 
-void AnimateBackgroundColor()
-{
-    static bool r_up = false;
-    static bool g_up = false;
-    static bool b_up = false;
+    // Update camera location
+    if (g_rightMouseButtonPressed)
+    {
+        static constexpr float movementDamping = 0.05f;
+        g_cameraTransform.Position.x += float(deltaMouseX) * movementDamping;
+        g_cameraTransform.Position.y += float(deltaMouseY) * -movementDamping;
+    }
+    g_cameraTransform.Position.z += float(deltaMouseZ);
 
-    r += r_up ? 0.005f : -0.005f;
-    g += g_up ? 0.003f : -0.003f;
-    b += b_up ? 0.004f : -0.004f;
-
-    r_up = (r < 0.0f || r > 1.0f) ? !r_up : r_up;
-    g_up = (g < 0.0f || g > 1.0f) ? !g_up : g_up;
-    b_up = (b < 0.0f || b > 1.0f) ? !b_up : b_up;
+    g_prevMouseX = g_currMouseX;
+    g_prevMouseY = g_currMouseY;
+    g_prevMouseZ = g_currMouseZ;
 }
 
 void GetMatrixFromTransform(cy::Matrix4f& o_Matrix, const Transform& i_transform)
