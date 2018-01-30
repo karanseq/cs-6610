@@ -35,7 +35,7 @@ struct Transform
 //~====================================================================================================
 // Constants
 constexpr char* WINDOW_TITLE = "Karan's CS_6610 Playground";
-constexpr char* DEFAULT_MESH_PATH = "C:\\Users\\u1087117\\Documents\\Visual Studio 2017\\Projects\\cs-6610\\CS_6610\\Content\\teapot.obj";
+char DEFAULT_MESH_PATH[1024] = {0};
 constexpr char* DEFAULT_VERTEX_SHADER_PATH = "C:\\Users\\u1087117\\Documents\\Visual Studio 2017\\Projects\\cs-6610\\CS_6610\\Content\\default_vertex_shader.glsl";
 constexpr char* DEFAULT_FRAGMENT_SHADER_PATH = "C:\\Users\\u1087117\\Documents\\Visual Studio 2017\\Projects\\cs-6610\\CS_6610\\Content\\default_fragment_shader.glsl";
 constexpr double FRAME_RATE = 1.0 / 60.0;
@@ -102,6 +102,15 @@ void GetMatrixFromTransform(cy::Matrix4f& o_Matrix, const Transform& i_transform
 int main(int argcp, char** argv)
 {
     LOG("Init!");
+
+    if (argcp < 2)
+    {
+        LOG_ERROR("Insufficient arguments passed to executable!");
+        return 0;
+    }
+
+    // save off the mesh path passed in as command-line argument
+    strncpy_s(DEFAULT_MESH_PATH, argv[1], strlen(argv[1]));
 
     // initialize GLUT
     {
@@ -335,7 +344,7 @@ void Update(float DeltaSeconds)
     // Update camera rotation
     if (g_leftMouseButtonPressed)
     {
-        static constexpr float rotationDamping = DEGREES_TO_RADIANS(5.0f);
+        static constexpr float rotationDamping = DEGREES_TO_RADIANS(10.0f);
         g_cameraTransform.Orientation.y += float(deltaMouseX) * rotationDamping;
         g_cameraTransform.Orientation.x += float(deltaMouseY) * rotationDamping;
     }
