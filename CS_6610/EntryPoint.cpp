@@ -36,8 +36,8 @@ struct Transform
 // Constants
 constexpr char* WINDOW_TITLE = "Karan's CS_6610 Playground";
 char DEFAULT_MESH_PATH[1024] = {0};
-constexpr char* DEFAULT_VERTEX_SHADER_PATH = "C:\\Users\\u1087117\\Documents\\Visual Studio 2017\\Projects\\cs-6610\\CS_6610\\Content\\default_vertex_shader.glsl";
-constexpr char* DEFAULT_FRAGMENT_SHADER_PATH = "C:\\Users\\u1087117\\Documents\\Visual Studio 2017\\Projects\\cs-6610\\CS_6610\\Content\\default_fragment_shader.glsl";
+constexpr char* DEFAULT_VERTEX_SHADER_PATH = "..\\CS_6610\\Content\\default_vertex_shader.glsl";
+constexpr char* DEFAULT_FRAGMENT_SHADER_PATH = "..\\CS_6610\\Content\\default_fragment_shader.glsl";
 constexpr double FRAME_RATE = 1.0 / 60.0;
 
 
@@ -66,9 +66,10 @@ cy::TriMesh g_TriMeshDefault;
 
 // GL Data
 cy::GLSLProgram g_GLProgramDefault;
-GLuint g_VBODefault;
-GLuint g_VAODefault;
-GLuint g_uniformModelViewProjection;
+GLuint g_vertexBufferId = 0;
+GLuint g_indexBufferId = 0;
+GLuint g_vertexArrayId = 0;
+GLuint g_uniformModelViewProjection = 0;
 
 // Misc Data
 std::stringstream g_messageStream;
@@ -192,7 +193,7 @@ void DisplayFunc()
             g_GLProgramDefault.SetUniformMatrix4("g_transform_modelViewProjection", modelViewProjection.data);
         }
 
-        glDrawArrays(GL_POINTS, 0, g_TriMeshDefault.NV());
+        glDrawElements(GL_TRIANGLES, g_TriMeshDefault.NF() * 3, GL_UNSIGNED_INT, 0);
     }
 
     glutSwapBuffers();
@@ -288,9 +289,6 @@ void BuildShaders()
 
 void InitMeshes()
 {
-    // TODO
-    // Initialize the mesh transform
-
     // Load the mesh from disk
     g_TriMeshDefault.LoadFromFileObj(DEFAULT_MESH_PATH);
     if (g_TriMeshDefault.IsBoundBoxReady() == false)
@@ -298,18 +296,111 @@ void InitMeshes()
         g_TriMeshDefault.ComputeBoundingBox();
     }
 
-    g_meshTransform.Orientation.Zero();
-    g_meshTransform.Orientation.x = -90.0f;
-    g_meshTransform.Position.Zero();
-    g_meshTransform.Position.y -= (g_TriMeshDefault.GetBoundMax().z + g_TriMeshDefault.GetBoundMin().z) * 0.5f;
+    // Initialize the mesh transform
+    {
+        g_meshTransform.Orientation.Zero();
+        g_meshTransform.Orientation.x = -90.0f;
+        g_meshTransform.Position.Zero();
+        g_meshTransform.Position.y -= (g_TriMeshDefault.GetBoundMax().z + g_TriMeshDefault.GetBoundMin().z) * 0.5f;
+    }
 
-    glGenVertexArrays(1, &g_VAODefault);
-    glGenBuffers(1, &g_VBODefault);
-    glBindVertexArray(g_VAODefault);
-    glBindBuffer(GL_ARRAY_BUFFER, g_VBODefault);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(cy::Point3f) * g_TriMeshDefault.NV(), &g_TriMeshDefault.V(0), GL_STATIC_DRAW);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+    // Create a vertex array object and make it active
+    {
+        constexpr GLsizei arrayCount = 1;
+        glGenVertexArrays(arrayCount, &g_vertexArrayId);
+        const GLenum errorCode = glGetError();
+        if (errorCode == GL_NO_ERROR)
+        {
+            glBindVertexArray(g_vertexArrayId);
+            const GLenum errorCode = glGetError();
+            if (errorCode != GL_NO_ERROR)
+            {
+                LOG_ERROR("OpenGL failed to bind a new vertex array!");
+            }
+        }
+        else
+        {
+            LOG_ERROR("OpenGL failed to get an unused vertex array!");
+        }
+    }
+
+    // Create a vertex buffer object and make it active
+    {
+        constexpr GLsizei bufferCount = 1;
+        glGenBuffers(bufferCount, &g_vertexBufferId);
+        const GLenum errorCode = glGetError();
+        if (errorCode == GL_NO_ERROR)
+        {
+            glBindBuffer(GL_ARRAY_BUFFER, g_vertexBufferId);
+            const GLenum errorCode = glGetError();
+            if (errorCode != GL_NO_ERROR)
+            {
+                LOG_ERROR("OpenGL failed to bind a new vertex buffer!");
+            }
+        }
+        else
+        {
+            LOG_ERROR("OpenGL failed to get an unused vertex buffer!");
+        }
+    }
+
+    // Assign data to the vertex buffer
+    {
+        const size_t bufferSize = sizeof(cy::Point3f) * g_TriMeshDefault.NV();
+        glBufferData(GL_ARRAY_BUFFER, bufferSize, &g_TriMeshDefault.V(0), GL_STATIC_DRAW);
+        const GLenum errorCode = glGetError();
+        if (errorCode != GL_NO_ERROR)
+        {
+            LOG_ERROR("OpenGL failed to allocate the vertex buffer!");
+        }
+    }
+
+    // Create an index buffer object and make it active
+    {
+        constexpr GLsizei bufferCount = 1;
+        glGenBuffers(bufferCount, &g_indexBufferId);
+        const GLenum errorCode = glGetError();
+        if (errorCode == GL_NO_ERROR)
+        {
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_indexBufferId);
+            const GLenum errorCode = glGetError();
+            if (errorCode != GL_NO_ERROR)
+            {
+                LOG_ERROR("OpenGL failed to bind a new index buffer!");
+            }
+        }
+        else
+        {
+            LOG_ERROR("OpenGL failed to get an unused index buffer!");
+        }
+    }
+
+    // Assign data to the index buffer
+    {
+        const size_t bufferSize = sizeof(cy::TriMesh::TriFace) * g_TriMeshDefault.NF();
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, bufferSize, &g_TriMeshDefault.F(0), GL_STATIC_DRAW);
+        const GLenum errorCode = glGetError();
+        if (errorCode != GL_NO_ERROR)
+        {
+            LOG_ERROR("OpenGL failed to allocate the index buffer!");
+        }
+    }
+
+    // Initialize vertex position attribute
+    {
+        constexpr GLuint vertexElementLocation = 0;
+        constexpr GLuint elementCount = 3;
+        glVertexAttribPointer(vertexElementLocation, elementCount, GL_FLOAT, GL_FALSE, 0, 0);
+        const GLenum errorCode = glGetError();
+        if (errorCode == GL_NO_ERROR)
+        {
+            glEnableVertexAttribArray(vertexElementLocation);
+            if (errorCode != GL_NO_ERROR)
+            {
+                LOG_ERROR("OpenGL failed to allocate the index buffer!");
+            }
+        }
+    }
 }
 
 void InitCamera()
