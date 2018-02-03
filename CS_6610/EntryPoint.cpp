@@ -66,9 +66,10 @@ cy::TriMesh g_TriMeshDefault;
 
 // GL Data
 cy::GLSLProgram g_GLProgramDefault;
-GLuint g_vertexBufferId = 0;
-GLuint g_indexBufferId = 0;
 GLuint g_vertexArrayId = 0;
+GLuint g_vertexBufferId = 0;
+GLuint g_normalBufferId = 0;
+GLuint g_indexBufferId = 0;
 GLuint g_uniformModelViewProjection = 0;
 
 // Misc Data
@@ -129,6 +130,7 @@ int main(int argcp, char** argv)
         glutInitWindowPosition(screen_width / 2 - window_width / 2, screen_height / 2 - window_height / 2);
         glutInitWindowSize(window_width, window_height);
         glutCreateWindow(WINDOW_TITLE);
+        glEnable(GL_DEPTH_TEST);
     }
 
     // initialize GLEW
@@ -191,6 +193,11 @@ void DisplayFunc()
             cy::Matrix4f modelViewProjection = g_perspectiveProjection * view * model;
 
             g_GLProgramDefault.SetUniformMatrix4("g_transform_modelViewProjection", modelViewProjection.data);
+
+            cy::Matrix3f modelView_inverseTranspose(view * model);
+            modelView_inverseTranspose.Invert();
+            modelView_inverseTranspose.Transpose();
+            g_GLProgramDefault.SetUniformMatrix3("g_transform_modelView_inverseTranspose", modelView_inverseTranspose.data);
         }
 
         glDrawElements(GL_TRIANGLES, g_TriMeshDefault.NF() * 3, GL_UNSIGNED_INT, 0);
@@ -355,6 +362,74 @@ void InitMeshes()
         }
     }
 
+    // Initialize vertex position attribute
+    {
+        constexpr GLuint vertexElementLocation = 0;
+        constexpr GLuint elementCount = 3;
+        glVertexAttribPointer(vertexElementLocation, elementCount, GL_FLOAT, GL_FALSE, 0, 0);
+        const GLenum errorCode = glGetError();
+        if (errorCode == GL_NO_ERROR)
+        {
+            glEnableVertexAttribArray(vertexElementLocation);
+            if (errorCode != GL_NO_ERROR)
+            {
+                LOG_ERROR("OpenGL failed to allocate the index buffer!");
+            }
+        }
+    }
+
+    // Create a normal buffer object and make it active
+    {
+        constexpr GLsizei bufferCount = 1;
+        glGenBuffers(bufferCount, &g_normalBufferId);
+        const GLenum errorCode = glGetError();
+        if (errorCode == GL_NO_ERROR)
+        {
+            glBindBuffer(GL_ARRAY_BUFFER, g_normalBufferId);
+            const GLenum errorCode = glGetError();
+            if (errorCode != GL_NO_ERROR)
+            {
+                LOG_ERROR("OpenGL failed to bind a new normal buffer!");
+            }
+        }
+        else
+        {
+            LOG_ERROR("OpenGL failed to get an unused normal buffer!");
+        }
+    }
+
+    // Assign data to the normal buffer
+    {
+        cy::Point3f* combinedNormals = reinterpret_cast<cy::Point3f*>(malloc(sizeof(cy::Point3f) * g_TriMeshDefault.NVN()));
+
+        const size_t bufferSize = sizeof(cy::Point3f) * g_TriMeshDefault.NVN();
+        glBufferData(GL_ARRAY_BUFFER, bufferSize, &g_TriMeshDefault.VN(0), GL_STATIC_DRAW);
+        const GLenum errorCode = glGetError();
+        if (errorCode != GL_NO_ERROR)
+        {
+            LOG_ERROR("OpenGL failed to allocate the normal buffer!");
+        }
+
+        free(combinedNormals);
+        combinedNormals = nullptr;
+    }
+
+    // Initialize vertex normal attribute
+    {
+        constexpr GLuint vertexElementLocation = 1;
+        constexpr GLuint elementCount = 3;
+        glVertexAttribPointer(vertexElementLocation, elementCount, GL_FLOAT, GL_FALSE, 0, 0);
+        const GLenum errorCode = glGetError();
+        if (errorCode == GL_NO_ERROR)
+        {
+            glEnableVertexAttribArray(vertexElementLocation);
+            if (errorCode != GL_NO_ERROR)
+            {
+                LOG_ERROR("OpenGL failed to allocate the index buffer!");
+            }
+        }
+    }
+
     // Create an index buffer object and make it active
     {
         constexpr GLsizei bufferCount = 1;
@@ -383,22 +458,6 @@ void InitMeshes()
         if (errorCode != GL_NO_ERROR)
         {
             LOG_ERROR("OpenGL failed to allocate the index buffer!");
-        }
-    }
-
-    // Initialize vertex position attribute
-    {
-        constexpr GLuint vertexElementLocation = 0;
-        constexpr GLuint elementCount = 3;
-        glVertexAttribPointer(vertexElementLocation, elementCount, GL_FLOAT, GL_FALSE, 0, 0);
-        const GLenum errorCode = glGetError();
-        if (errorCode == GL_NO_ERROR)
-        {
-            glEnableVertexAttribArray(vertexElementLocation);
-            if (errorCode != GL_NO_ERROR)
-            {
-                LOG_ERROR("OpenGL failed to allocate the index buffer!");
-            }
         }
     }
 }

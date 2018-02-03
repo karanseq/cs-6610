@@ -4,6 +4,8 @@
 // Input
 //======
 
+layout(location = 0) in vec3 i_normal;
+
 // Output
 //=======
 
@@ -13,5 +15,6 @@ out vec4 o_color;
 
 void main()
 {
-	o_color = vec4(0.8, 0.2, 0.5, 1.0);
+	vec3 normalized = normalize(i_normal);
+	o_color = vec4(normalized, 1.0);
 }
