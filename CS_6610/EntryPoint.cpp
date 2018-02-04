@@ -40,12 +40,15 @@ constexpr char* DEFAULT_VERTEX_SHADER_PATH = "..\\CS_6610\\Content\\default_vert
 constexpr char* DEFAULT_FRAGMENT_SHADER_PATH = "..\\CS_6610\\Content\\default_fragment_shader.glsl";
 constexpr double FRAME_RATE = 1.0 / 60.0;
 
+constexpr unsigned char CTRL_KEY = 114;
+
 
 //~====================================================================================================
 // Counters
 std::chrono::time_point<std::chrono::steady_clock> LAST_DRAW_TIME_POINT;
 bool g_leftMouseButtonPressed = false;
 bool g_rightMouseButtonPressed = false;
+bool g_controlPressed = false;
 int g_currMouseX = 0;
 int g_currMouseY = 0;
 int g_currMouseZ = 0;
@@ -63,6 +66,15 @@ cy::Matrix4f g_perspectiveProjection;
 // Mesh Data
 Transform g_meshTransform;
 cy::TriMesh g_TriMeshDefault;
+
+// Light Data
+Transform g_lightTransform;
+cy::Point3f g_lightIntensity(1.0f, 1.0f, 1.0f);
+cy::Point3f g_ambientLightIntensity(0.75f, 0.75f, 0.75f);
+cy::Point3f g_ambient(0.2f, 0.2f, 0.2f);
+cy::Point3f g_diffuse(0.75f, 0.75f, 0.75f);
+cy::Point3f g_specular(1.0f, 1.0f, 1.0f);
+float g_shininess = 50.0f;
 
 // GL Data
 cy::GLSLProgram g_GLProgramDefault;
@@ -84,6 +96,7 @@ void DisplayFunc();
 void IdleFunc();
 void KeyboardFunc(unsigned char key, int x, int y);
 void SpecialFunc(int key, int x, int y);
+void SpecialUpFunc(int key, int x, int y);
 void MouseFunc(int button, int state, int x, int y);
 void MotionFunc(int x, int y);
 void MouseWheelFunc(int button, int dir, int x, int y);
@@ -92,6 +105,7 @@ void MouseWheelFunc(int button, int dir, int x, int y);
 void InitMeshes();
 void BuildShaders();
 void InitCamera();
+void InitLights();
 
 // Update functions
 void Update(float DeltaSeconds);
@@ -149,6 +163,7 @@ int main(int argcp, char** argv)
         glutIdleFunc(&IdleFunc);
         glutKeyboardFunc(&KeyboardFunc);
         glutSpecialFunc(&SpecialFunc);
+        glutSpecialUpFunc(&SpecialUpFunc);
         glutMouseFunc(&MouseFunc);
         glutMotionFunc(&MotionFunc);
         glutMouseWheelFunc(&MouseWheelFunc);
@@ -159,6 +174,7 @@ int main(int argcp, char** argv)
         BuildShaders();
         InitMeshes();
         InitCamera();
+        InitLights();
     }
 
     LAST_DRAW_TIME_POINT = std::chrono::steady_clock::now();
@@ -190,14 +206,40 @@ void DisplayFunc()
             cy::Matrix4f view;
             GetMatrixFromTransform(view, g_cameraTransform);
 
-            cy::Matrix4f modelViewProjection = g_perspectiveProjection * view * model;
+            // Set the model-view-projection matrix
+            {
+                const cy::Matrix4f modelViewProjection = g_perspectiveProjection * view * model;
+                g_GLProgramDefault.SetUniformMatrix4("g_transform_modelViewProjection", modelViewProjection.data);
+            }
 
-            g_GLProgramDefault.SetUniformMatrix4("g_transform_modelViewProjection", modelViewProjection.data);
+            // Set the model-view matrix
+            {
+                const cy::Matrix3f modelView(view * model);
+                g_GLProgramDefault.SetUniformMatrix3("g_transform_modelView", modelView.data);
+            }
 
-            cy::Matrix3f modelView_inverseTranspose(view * model);
-            modelView_inverseTranspose.Invert();
-            modelView_inverseTranspose.Transpose();
-            g_GLProgramDefault.SetUniformMatrix3("g_transform_modelView_inverseTranspose", modelView_inverseTranspose.data);
+            // Set the camera position
+            {
+                const cy::Point4f cameraPosition = view * g_cameraTransform.Position;
+                g_GLProgramDefault.SetUniform("g_cameraPosition", cameraPosition.x, cameraPosition.y, cameraPosition.z);
+            }
+
+            // Set the light parameters
+            {
+                //cy::Matrix4f light_model;
+                //GetMatrixFromTransform(light_model, g_lightTransform);
+
+                const cy::Point4f lightPosition = view * g_lightTransform.Position;
+
+                g_GLProgramDefault.SetUniform("g_lightPosition", lightPosition.x, lightPosition.y, lightPosition.z);
+                g_GLProgramDefault.SetUniform("g_lightIntensity", g_lightIntensity.x, g_lightIntensity.y, g_lightIntensity.z);
+                g_GLProgramDefault.SetUniform("g_ambientLightIntensity", g_ambientLightIntensity.x, g_ambientLightIntensity.y, g_ambientLightIntensity.z);
+                
+                g_GLProgramDefault.SetUniform("g_ambient", g_ambient.x, g_ambient.y, g_ambient.z);                
+                g_GLProgramDefault.SetUniform("g_diffuse", g_diffuse.x, g_diffuse.y, g_diffuse.z);
+                g_GLProgramDefault.SetUniform("g_specular", g_specular.x, g_specular.y, g_specular.z);
+                g_GLProgramDefault.SetUniform("g_shininess", g_shininess);
+            }
         }
 
         glDrawElements(GL_TRIANGLES, g_TriMeshDefault.NF() * 3, GL_UNSIGNED_INT, 0);
@@ -223,7 +265,7 @@ void IdleFunc()
 
 void KeyboardFunc(unsigned char key, int x, int y)
 {
-    static const unsigned char ESC_KEY = 27;
+    static constexpr unsigned char ESC_KEY = 27;
 
     if (key == ESC_KEY)
     {
@@ -237,6 +279,13 @@ void SpecialFunc(int key, int x, int y)
     {
         BuildShaders();
     }
+
+    g_controlPressed = (key == CTRL_KEY);
+}
+
+void SpecialUpFunc(int key, int x, int y)
+{
+    g_controlPressed = !(key == CTRL_KEY);
 }
 
 void MouseFunc(int button, int state, int x, int y)
@@ -482,6 +531,17 @@ void InitCamera()
     }
 }
 
+void InitLights()
+{
+    // Initialize the transform
+    {
+        g_lightTransform.Orientation.Zero();
+        g_lightTransform.Position.x = 0.0f;
+        g_lightTransform.Position.y = 75.0f;
+        g_lightTransform.Position.z = 75.0f;
+    }
+}
+
 //~====================================================================================================
 // Update functions
 
@@ -495,17 +555,36 @@ void Update(float DeltaSeconds)
     if (g_leftMouseButtonPressed)
     {
         static constexpr float rotationDamping = DEGREES_TO_RADIANS(10.0f);
-        g_cameraTransform.Orientation.y += float(deltaMouseX) * rotationDamping;
-        g_cameraTransform.Orientation.x += float(deltaMouseY) * rotationDamping;
+
+        if (g_controlPressed)
+        {
+            g_lightTransform.Orientation.y += float(deltaMouseX) * rotationDamping;
+            g_lightTransform.Orientation.x += float(deltaMouseY) * rotationDamping;
+        }
+        else
+        {
+            g_cameraTransform.Orientation.y += float(deltaMouseX) * rotationDamping;
+            g_cameraTransform.Orientation.x += float(deltaMouseY) * rotationDamping;
+        }
     }
 
     // Update camera location
     if (g_rightMouseButtonPressed)
     {
         static constexpr float movementDamping = 0.05f;
-        g_cameraTransform.Position.x += float(deltaMouseX) * movementDamping;
-        g_cameraTransform.Position.y += float(deltaMouseY) * -movementDamping;
+
+        if (g_controlPressed)
+        {
+            g_lightTransform.Position.x += float(deltaMouseX) * movementDamping;
+            g_lightTransform.Position.y += float(deltaMouseY) * -movementDamping;
+        }
+        else
+        {
+            g_cameraTransform.Position.x += float(deltaMouseX) * movementDamping;
+            g_cameraTransform.Position.y += float(deltaMouseY) * -movementDamping;
+        }
     }
+
     g_cameraTransform.Position.z += float(deltaMouseZ);
 
     g_prevMouseX = g_currMouseX;
@@ -513,11 +592,11 @@ void Update(float DeltaSeconds)
     g_prevMouseZ = g_currMouseZ;
 }
 
-void GetMatrixFromTransform(cy::Matrix4f& o_Matrix, const Transform& i_transform)
+void GetMatrixFromTransform(cy::Matrix4f& o_matrix, const Transform& i_transform)
 {
     const cy::Matrix4f matRotationX = cy::Matrix4f::MatrixRotationX(DEGREES_TO_RADIANS(i_transform.Orientation.x));
     const cy::Matrix4f matRotationY = cy::Matrix4f::MatrixRotationY(DEGREES_TO_RADIANS(i_transform.Orientation.y));
     const cy::Matrix4f matRotationZ = cy::Matrix4f::MatrixRotationZ(DEGREES_TO_RADIANS(i_transform.Orientation.z));
     const cy::Matrix4f matTranslation = cy::Matrix4f::MatrixTrans(i_transform.Position);
-    o_Matrix = matTranslation * matRotationX * matRotationY * matRotationZ;
+    o_matrix = matTranslation * matRotationX * matRotationY * matRotationZ;
 }
