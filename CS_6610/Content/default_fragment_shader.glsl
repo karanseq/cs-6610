@@ -1,16 +1,21 @@
 // GLSL shaders require the version to be #defined before anything else in the shader
 #version 420
 
+#define USE_BLINN
+
 // Input
 //======
 
+// The interpolated vertex position in world space
 layout(location = 0) in vec3 i_vertex;
+// The interpolated normal in world space
 layout(location = 1) in vec3 i_normal;
 
+// The camera position in world space
 uniform vec3 g_cameraPosition;
-
+// The light position in world space
 uniform vec3 g_lightPosition;
-uniform vec3 g_lightIntensity;
+
 uniform vec3 g_ambientLightIntensity;
 
 uniform vec3 g_ambient;
@@ -29,21 +34,19 @@ out vec4 o_color;
 //======================
 
 vec4 evaluateLights();
-vec4 getDiffuse();
-vec4 getAmbientLight();
+vec3 getDiffuse(in vec3 lightDirection, in vec3 normal);
+vec3 getSpecular(in vec3 lightDirection, in vec3 normal);
+vec3 getAmbient();
 
 // Main
 //=====
 
 void main()
 {
-	vec4 color = vec4(1.0, 0.0f, 0.0, 1.0);	
+	o_color = evaluateLights();
 
-	vec4 lights = evaluateLights();
-	o_color = lights * color;
-
-	//vec3 normalized = normalize(i_normal);
-	//o_color = vec4(normalized, 1.0);
+	// vec3 normalized = normalize(i_normal);
+	// o_color = vec4(normalized, 1.0);
 }
 
 vec4 evaluateLights()
@@ -51,20 +54,39 @@ vec4 evaluateLights()
 	vec3 lightDirection = normalize(g_lightPosition - i_vertex);
 	vec3 normal = normalize(i_normal);
 
-	float cosTheta = dot(lightDirection, normal);
-	cosTheta = cosTheta < 0.0 ? 0.0 : cosTheta;
-
-	return (getDiffuse() * cosTheta + getAmbientLight());
+	return vec4(
+		getDiffuse(lightDirection, normal) + 
+		getSpecular(lightDirection, normal) + 
+		getAmbient()
+		, 1.0);
 }
 
-vec4 getDiffuse()
+vec3 getDiffuse(in vec3 lightDirection, in vec3 normal)
 {
-	vec4 diffuse = vec4(g_diffuse * g_lightIntensity, 1.0);
-	return(diffuse);
+	vec3 diffuse = clamp(dot(lightDirection, normal), 0.0, 1.0) * g_diffuse;
+	return (diffuse);
 }
 
-vec4 getAmbientLight()
+vec3 getSpecular(in vec3 lightDirection, in vec3 normal)
 {
-	vec4 ambient = vec4(g_ambient * g_ambientLightIntensity, 1.0);
-	return(ambient);
+	vec3 viewDirection = normalize(i_vertex - g_cameraPosition);
+
+#if defined USE_BLINN
+
+	vec3 halfAngle = normalize(lightDirection + viewDirection);
+	vec3 specular = vec3(g_specular * pow(clamp(dot(halfAngle, normal), 0.0, 1.0), g_shininess));
+
+#else
+
+	vec3 reflection = reflect(-lightDirection, normal);
+	vec3 specular = vec3(g_specular * pow(max(dot(viewDirection, reflection), 0.0), g_shininess));
+
+#endif
+
+	return (specular);
+}
+
+vec3 getAmbient()
+{
+	return (g_ambient * g_ambientLightIntensity);
 }

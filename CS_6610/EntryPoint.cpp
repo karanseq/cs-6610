@@ -41,6 +41,7 @@ constexpr char* DEFAULT_FRAGMENT_SHADER_PATH = "..\\CS_6610\\Content\\default_fr
 constexpr double FRAME_RATE = 1.0 / 60.0;
 
 constexpr unsigned char CTRL_KEY = 114;
+constexpr float distanceFromMesh = 100.0f;
 
 
 //~====================================================================================================
@@ -69,12 +70,11 @@ cy::TriMesh g_TriMeshDefault;
 
 // Light Data
 Transform g_lightTransform;
-cy::Point3f g_lightIntensity(1.0f, 1.0f, 1.0f);
-cy::Point3f g_ambientLightIntensity(0.75f, 0.75f, 0.75f);
-cy::Point3f g_ambient(0.2f, 0.2f, 0.2f);
-cy::Point3f g_diffuse(0.75f, 0.75f, 0.75f);
-cy::Point3f g_specular(1.0f, 1.0f, 1.0f);
-float g_shininess = 50.0f;
+cy::Point3f g_ambientLightIntensity(0.2f, 0.2f, 0.2f);
+cy::Point3f g_ambient(1.0f, 0.0f, 0.0f);
+cy::Point3f g_diffuse(1.0f, 0.0f, 0.0f);
+cy::Point3f g_specular(0.75f, 0.75f, 0.75f);
+float g_shininess = 100.0f;
 
 // GL Data
 cy::GLSLProgram g_GLProgramDefault;
@@ -200,39 +200,32 @@ void DisplayFunc()
     {
         g_GLProgramDefault.Bind();
         {
+            // Set the model transformation
             cy::Matrix4f model;
             GetMatrixFromTransform(model, g_meshTransform);
+            g_GLProgramDefault.SetUniformMatrix4("g_transform_model", model.data);
 
+            // Set the view transformation
             cy::Matrix4f view;
             GetMatrixFromTransform(view, g_cameraTransform);
+            g_GLProgramDefault.SetUniformMatrix4("g_transform_view", view.data);
 
-            // Set the model-view-projection matrix
-            {
-                const cy::Matrix4f modelViewProjection = g_perspectiveProjection * view * model;
-                g_GLProgramDefault.SetUniformMatrix4("g_transform_modelViewProjection", modelViewProjection.data);
-            }
-
-            // Set the model-view matrix
-            {
-                const cy::Matrix3f modelView(view * model);
-                g_GLProgramDefault.SetUniformMatrix3("g_transform_modelView", modelView.data);
-            }
+            // Set the projection transformation
+            g_GLProgramDefault.SetUniformMatrix4("g_transform_projection", g_perspectiveProjection.data);
 
             // Set the camera position
             {
-                const cy::Point4f cameraPosition = view * g_cameraTransform.Position;
-                g_GLProgramDefault.SetUniform("g_cameraPosition", cameraPosition.x, cameraPosition.y, cameraPosition.z);
+                g_GLProgramDefault.SetUniform("g_cameraPosition", g_cameraTransform.Position.x, g_cameraTransform.Position.y, g_cameraTransform.Position.z);
             }
 
             // Set the light parameters
             {
-                //cy::Matrix4f light_model;
-                //GetMatrixFromTransform(light_model, g_lightTransform);
-
-                const cy::Point4f lightPosition = view * g_lightTransform.Position;
+                cy::Matrix4f light;
+                GetMatrixFromTransform(light, g_lightTransform);
+                cy::Point4f lightPosition = model * light * g_lightTransform.Position;
 
                 g_GLProgramDefault.SetUniform("g_lightPosition", lightPosition.x, lightPosition.y, lightPosition.z);
-                g_GLProgramDefault.SetUniform("g_lightIntensity", g_lightIntensity.x, g_lightIntensity.y, g_lightIntensity.z);
+
                 g_GLProgramDefault.SetUniform("g_ambientLightIntensity", g_ambientLightIntensity.x, g_ambientLightIntensity.y, g_ambientLightIntensity.z);
                 
                 g_GLProgramDefault.SetUniform("g_ambient", g_ambient.x, g_ambient.y, g_ambient.z);                
@@ -279,13 +272,15 @@ void SpecialFunc(int key, int x, int y)
     {
         BuildShaders();
     }
-
-    g_controlPressed = (key == CTRL_KEY);
+    else
+    {
+        g_controlPressed = (key == CTRL_KEY);
+    }
 }
 
 void SpecialUpFunc(int key, int x, int y)
 {
-    g_controlPressed = !(key == CTRL_KEY);
+    g_controlPressed = g_controlPressed ? !(key == CTRL_KEY) : g_controlPressed;
 }
 
 void MouseFunc(int button, int state, int x, int y)
@@ -347,6 +342,7 @@ void InitMeshes()
 {
     // Load the mesh from disk
     g_TriMeshDefault.LoadFromFileObj(DEFAULT_MESH_PATH);
+    g_TriMeshDefault.ComputeNormals();
     if (g_TriMeshDefault.IsBoundBoxReady() == false)
     {
         g_TriMeshDefault.ComputeBoundingBox();
@@ -536,9 +532,9 @@ void InitLights()
     // Initialize the transform
     {
         g_lightTransform.Orientation.Zero();
-        g_lightTransform.Position.x = 0.0f;
-        g_lightTransform.Position.y = 75.0f;
-        g_lightTransform.Position.z = 75.0f;
+        g_lightTransform.Position.Zero();
+        //g_lightTransform.Position.x = distanceFromMesh * cos(DEGREES_TO_RADIANS(g_lightTransform.Orientation.y));
+        g_lightTransform.Position.z = 50;
     }
 }
 
@@ -558,6 +554,11 @@ void Update(float DeltaSeconds)
 
         if (g_controlPressed)
         {
+            //g_lightTransform.Orientation.y += float(deltaMouseX) * -rotationDamping;
+
+            //g_lightTransform.Position.x = distanceFromMesh * cos(DEGREES_TO_RADIANS(g_lightTransform.Orientation.y));
+            //g_lightTransform.Position.z = distanceFromMesh * sin(DEGREES_TO_RADIANS(g_lightTransform.Orientation.y));
+
             g_lightTransform.Orientation.y += float(deltaMouseX) * rotationDamping;
             g_lightTransform.Orientation.x += float(deltaMouseY) * rotationDamping;
         }
@@ -573,16 +574,8 @@ void Update(float DeltaSeconds)
     {
         static constexpr float movementDamping = 0.05f;
 
-        if (g_controlPressed)
-        {
-            g_lightTransform.Position.x += float(deltaMouseX) * movementDamping;
-            g_lightTransform.Position.y += float(deltaMouseY) * -movementDamping;
-        }
-        else
-        {
-            g_cameraTransform.Position.x += float(deltaMouseX) * movementDamping;
-            g_cameraTransform.Position.y += float(deltaMouseY) * -movementDamping;
-        }
+        g_cameraTransform.Position.x += float(deltaMouseX) * movementDamping;
+        g_cameraTransform.Position.y += float(deltaMouseY) * -movementDamping;
     }
 
     g_cameraTransform.Position.z += float(deltaMouseZ);
