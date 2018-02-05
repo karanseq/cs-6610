@@ -72,7 +72,7 @@ cy::TriMesh g_TriMeshDefault;
 Transform g_lightTransform;
 cy::Point3f g_ambientLightIntensity(0.2f, 0.2f, 0.2f);
 cy::Point3f g_ambient(1.0f, 0.0f, 0.0f);
-cy::Point3f g_diffuse(1.0f, 0.0f, 0.0f);
+cy::Point3f g_diffuse(0.8f, 0.0f, 0.0f);
 cy::Point3f g_specular(0.75f, 0.75f, 0.75f);
 float g_shininess = 100.0f;
 
@@ -214,9 +214,7 @@ void DisplayFunc()
             g_GLProgramDefault.SetUniformMatrix4("g_transform_projection", g_perspectiveProjection.data);
 
             // Set the camera position
-            {
-                g_GLProgramDefault.SetUniform("g_cameraPosition", g_cameraTransform.Position.x, g_cameraTransform.Position.y, g_cameraTransform.Position.z);
-            }
+            g_GLProgramDefault.SetUniform("g_cameraPosition", g_cameraTransform.Position.x, g_cameraTransform.Position.y, g_cameraTransform.Position.z);
 
             // Set the light parameters
             {
@@ -533,8 +531,7 @@ void InitLights()
     {
         g_lightTransform.Orientation.Zero();
         g_lightTransform.Position.Zero();
-        //g_lightTransform.Position.x = distanceFromMesh * cos(DEGREES_TO_RADIANS(g_lightTransform.Orientation.y));
-        g_lightTransform.Position.z = 50;
+        g_lightTransform.Position.z = 75;
     }
 }
 
@@ -554,11 +551,6 @@ void Update(float DeltaSeconds)
 
         if (g_controlPressed)
         {
-            //g_lightTransform.Orientation.y += float(deltaMouseX) * -rotationDamping;
-
-            //g_lightTransform.Position.x = distanceFromMesh * cos(DEGREES_TO_RADIANS(g_lightTransform.Orientation.y));
-            //g_lightTransform.Position.z = distanceFromMesh * sin(DEGREES_TO_RADIANS(g_lightTransform.Orientation.y));
-
             g_lightTransform.Orientation.y += float(deltaMouseX) * rotationDamping;
             g_lightTransform.Orientation.x += float(deltaMouseY) * rotationDamping;
         }

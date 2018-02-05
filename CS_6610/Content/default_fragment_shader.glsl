@@ -1,7 +1,7 @@
 // GLSL shaders require the version to be #defined before anything else in the shader
 #version 420
 
-#define USE_BLINN
+// #define USE_BLINN
 
 // Input
 //======
