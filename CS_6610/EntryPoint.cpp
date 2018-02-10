@@ -128,8 +128,6 @@ void GetMatrixFromTransform(cy::Matrix4f& o_Matrix, const Transform& i_transform
 
 int main(int argcp, char** argv)
 {
-    LOG("Init!");
-
     if (argcp < 2)
     {
         LOG_ERROR("Insufficient arguments passed to executable!");
@@ -198,8 +196,6 @@ int main(int argcp, char** argv)
     // run!
     glutMainLoop();
 
-    LOG("Shutdown!");
-
     return 0;
 }
 
@@ -256,7 +252,7 @@ void DisplayFunc()
         glBindTexture(GL_TEXTURE_2D, g_specularTextureId);
 
         // Draw the mesh
-        glDrawElements(GL_TRIANGLES, g_triMesh.NF() * 3, GL_UNSIGNED_INT, 0);
+        glDrawArrays(GL_TRIANGLES, 0, g_triMesh.NF() * 3);
     }
 
     glutSwapBuffers();
@@ -416,13 +412,25 @@ void InitMeshes(const char* i_meshPath)
 
     // Assign data to the vertex buffer
     {
-        const size_t bufferSize = sizeof(cy::Point3f) * g_triMesh.NV();
-        glBufferData(GL_ARRAY_BUFFER, bufferSize, &g_triMesh.V(0), GL_STATIC_DRAW);
+        const size_t bufferSize = sizeof(cy::Point3f) * g_triMesh.NF() * 3;
+        cy::Point3f* vertices = (cy::Point3f*) malloc(bufferSize);
+
+        for (unsigned int i = 0; i < g_triMesh.NF(); ++i)
+        {
+            const cy::TriMesh::TriFace& triFace = g_triMesh.F(i);
+            vertices[i * 3] = g_triMesh.V(triFace.v[0]);
+            vertices[i * 3 + 1] = g_triMesh.V(triFace.v[1]);
+            vertices[i * 3 + 2] = g_triMesh.V(triFace.v[2]);
+        }
+
+        glBufferData(GL_ARRAY_BUFFER, bufferSize, vertices, GL_STATIC_DRAW);
         const GLenum errorCode = glGetError();
         if (errorCode != GL_NO_ERROR)
         {
             LOG_ERROR("OpenGL failed to allocate the vertex buffer!");
         }
+
+        free(vertices);
     }
 
     // Initialize vertex position attribute
@@ -463,13 +471,25 @@ void InitMeshes(const char* i_meshPath)
 
     // Assign data to the normal buffer
     {
-        const size_t bufferSize = sizeof(cy::Point3f) * g_triMesh.NVN();
-        glBufferData(GL_ARRAY_BUFFER, bufferSize, &g_triMesh.VN(0), GL_STATIC_DRAW);
+        const size_t bufferSize = sizeof(cy::Point3f) * g_triMesh.NF() * 3;
+        cy::Point3f* normals = (cy::Point3f*) malloc(bufferSize);
+
+        for (unsigned int i = 0; i < g_triMesh.NF(); ++i)
+        {
+            const cy::TriMesh::TriFace& triFace = g_triMesh.FN(i);
+            normals[i * 3] = g_triMesh.VN(triFace.v[0]);
+            normals[i * 3 + 1] = g_triMesh.VN(triFace.v[1]);
+            normals[i * 3 + 2] = g_triMesh.VN(triFace.v[2]);
+        }
+
+        glBufferData(GL_ARRAY_BUFFER, bufferSize, normals, GL_STATIC_DRAW);
         const GLenum errorCode = glGetError();
         if (errorCode != GL_NO_ERROR)
         {
             LOG_ERROR("OpenGL failed to allocate the normal buffer!");
         }
+
+        free(normals);
     }
 
     // Initialize vertex normal attribute
@@ -510,28 +530,25 @@ void InitMeshes(const char* i_meshPath)
 
     // Assign data to the texture coordinate buffer
     {
-        const size_t bufferSize = sizeof(cy::Point2f) * g_triMesh.NV();
+        const size_t bufferSize = sizeof(cy::Point2f) * g_triMesh.NF() * 3;
+        cy::Point2f* uvs = (cy::Point2f*) malloc(bufferSize);
 
-        cy::Point2f* texCoords = reinterpret_cast<cy::Point2f*>(malloc(bufferSize));
-        for (int i = 0; i < g_triMesh.NF(); ++i)
+        for (unsigned int i = 0; i < g_triMesh.NF(); ++i)
         {
-            const cy::TriMesh::TriFace& vertexFace = g_triMesh.F(i);
-            const cy::TriMesh::TriFace& texCoordFace = g_triMesh.FT(i);
-
-            texCoords[vertexFace.v[0]] = cy::Point2f(g_triMesh.VT(texCoordFace.v[0]));
-            texCoords[vertexFace.v[1]] = cy::Point2f(g_triMesh.VT(texCoordFace.v[1]));
-            texCoords[vertexFace.v[2]] = cy::Point2f(g_triMesh.VT(texCoordFace.v[2]));
+            const cy::TriMesh::TriFace& triFace = g_triMesh.FT(i);
+            uvs[i * 3] = cy::Point2f(g_triMesh.VT(triFace.v[0]));
+            uvs[i * 3 + 1] = cy::Point2f(g_triMesh.VT(triFace.v[1]));
+            uvs[i * 3 + 2] = cy::Point2f(g_triMesh.VT(triFace.v[2]));
         }
 
-        glBufferData(GL_ARRAY_BUFFER, bufferSize, texCoords, GL_STATIC_DRAW);
+        glBufferData(GL_ARRAY_BUFFER, bufferSize, uvs, GL_STATIC_DRAW);
         const GLenum errorCode = glGetError();
         if (errorCode != GL_NO_ERROR)
         {
-            LOG_ERROR("OpenGL failed to allocate the normal buffer!");
+            LOG_ERROR("OpenGL failed to allocate the texture coordinate buffer!");
         }
 
-        free(texCoords);
-        texCoords = nullptr;
+        free(uvs);
     }
 
     // Initialize the texture coordinate attribute

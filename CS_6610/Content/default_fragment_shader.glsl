@@ -91,5 +91,5 @@ vec3 getSpecular(in vec3 lightDirection, in vec3 normal)
 
 vec3 getAmbient()
 {
-	return (g_ambient * g_ambientLightIntensity);
+	return g_ambient * vec3(texture(g_diffuseTextureSampler, i_uv));
 }
