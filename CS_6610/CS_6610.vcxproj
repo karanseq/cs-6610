@@ -160,6 +160,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="EntryPoint.cpp" />
+    <ClCompile Include="Utils\lodepng.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Utils\cyCore.h" />
@@ -167,6 +168,7 @@
     <ClInclude Include="Utils\cyMatrix.h" />
     <ClInclude Include="Utils\cyPoint.h" />
     <ClInclude Include="Utils\cyTriMesh.h" />
+    <ClInclude Include="Utils\lodepng.h" />
     <ClInclude Include="Utils\logger.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

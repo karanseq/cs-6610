@@ -10,14 +10,20 @@
 layout(location = 0) in vec3 i_vertex;
 // The interpolated normal in world space
 layout(location = 1) in vec3 i_normal;
+// The interpolated uvs
+layout(location = 2) in vec2 i_uv;
+
+// Texture parameters
+layout(binding = 0) uniform sampler2D g_diffuseTextureSampler;
+layout(binding = 1) uniform sampler2D g_specularTextureSampler;
 
 // The camera position in world space
 uniform vec3 g_cameraPosition;
 // The light position in world space
 uniform vec3 g_lightPosition;
 
+// Lighting parameters
 uniform vec3 g_ambientLightIntensity;
-
 uniform vec3 g_ambient;
 uniform vec3 g_diffuse;
 uniform vec3 g_specular;
@@ -44,9 +50,6 @@ vec3 getAmbient();
 void main()
 {
 	o_color = evaluateLights();
-
-	// vec3 normalized = normalize(i_normal);
-	// o_color = vec4(normalized, 1.0);
 }
 
 vec4 evaluateLights()
@@ -64,7 +67,7 @@ vec4 evaluateLights()
 vec3 getDiffuse(in vec3 lightDirection, in vec3 normal)
 {
 	vec3 diffuse = clamp(dot(lightDirection, normal), 0.0, 1.0) * g_diffuse;
-	return (diffuse);
+	return diffuse * vec3(texture(g_diffuseTextureSampler, i_uv));
 }
 
 vec3 getSpecular(in vec3 lightDirection, in vec3 normal)
@@ -83,7 +86,7 @@ vec3 getSpecular(in vec3 lightDirection, in vec3 normal)
 
 #endif
 
-	return (specular);
+	return specular * vec3(texture(g_specularTextureSampler, i_uv));
 }
 
 vec3 getAmbient()
