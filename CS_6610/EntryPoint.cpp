@@ -40,12 +40,17 @@ struct Transform
 constexpr char* WINDOW_TITLE = "Karan's CS_6610 Playground";
 constexpr uint8_t CONTENT_PATH_LENGTH = 22;
 constexpr char* CONTENT_PATH = "..\\CS_6610\\Content\\";
-constexpr char* VERTEX_SHADER_PATH = "..\\CS_6610\\Content\\default_vertex_shader.glsl";
-constexpr char* FRAGMENT_SHADER_PATH = "..\\CS_6610\\Content\\default_fragment_shader.glsl";
+constexpr char* MESH_VERTEX_SHADER_PATH = "..\\CS_6610\\Content\\mesh_vertex_shader.glsl";
+constexpr char* MESH_FRAGMENT_SHADER_PATH = "..\\CS_6610\\Content\\mesh_fragment_shader.glsl";
+constexpr char* PLANE_VERTEX_SHADER_PATH = "..\\CS_6610\\Content\\plane_vertex_shader.glsl";
+constexpr char* PLANE_FRAGMENT_SHADER_PATH = "..\\CS_6610\\Content\\plane_fragment_shader.glsl";
 constexpr uint16_t MAX_PATH_LENGTH = 1024;
+constexpr uint16_t WINDOW_WIDTH = 512;
+constexpr uint16_t WINDOW_HEIGHT = 512;
 
 constexpr double FRAME_RATE = 1.0 / 60.0;
 constexpr unsigned char CTRL_KEY = 114;
+constexpr unsigned char ALT_KEY = 116;
 constexpr float DISTANCE_FROM_MESH = 100.0f;
 
 
@@ -55,6 +60,7 @@ std::chrono::time_point<std::chrono::steady_clock> LAST_DRAW_TIME_POINT;
 bool g_leftMouseButtonPressed = false;
 bool g_rightMouseButtonPressed = false;
 bool g_controlPressed = false;
+bool g_altPressed = false;
 int g_currMouseX = 0;
 int g_currMouseY = 0;
 int g_currMouseZ = 0;
@@ -65,18 +71,20 @@ int g_prevMouseZ = 0;
 
 //~====================================================================================================
 // Data
-// Camera Data
+
+// Camera
 Transform g_cameraTransform;
 cy::Matrix4f g_perspectiveProjection;
 
-// Mesh Data
-Transform g_meshTransform;
-cy::TriMesh g_triMesh;
+// Meshes
+// Teapot
+Transform g_teapotTransform;
+cy::TriMesh g_teapotMesh;
 
-// Texture Data
+// Render Texture Plane
+Transform g_planeTransform;
 
-
-// Light Data
+// Light
 Transform g_lightTransform;
 cy::Point3f g_ambientLightIntensity(0.2f, 0.2f, 0.2f);
 cy::Point3f g_ambient(0.0f, 0.0f, 0.0f);
@@ -84,17 +92,30 @@ cy::Point3f g_diffuse(0.0f, 0.0f, 0.0f);
 cy::Point3f g_specular(0.75f, 0.75f, 0.75f);
 float g_shininess = 100.0f;
 
-// GL Data
-cy::GLSLProgram g_GLProgramDefault;
-GLuint g_vertexArrayId = 0;
-GLuint g_vertexBufferId = 0;
-GLuint g_normalBufferId = 0;
-GLuint g_texCoordBufferId = 0;
-GLuint g_indexBufferId = 0;
-GLuint g_diffuseTextureId = 0;
-GLuint g_specularTextureId = 0;
+// Render Texture
+cy::GLRenderTexture2D g_renderTexture;
 
-// Misc Data
+// Shader
+cy::GLSLProgram g_teapotGLProgram;
+cy::GLSLProgram g_planeGLProgram;
+
+// Buffer IDs
+// Teapot
+GLuint g_teapotVertexArrayId = 0;
+GLuint g_teapotVertexBufferId = 0;
+GLuint g_teapotNormalBufferId = 0;
+GLuint g_teapotTexCoordBufferId = 0;
+GLuint g_teapotIndexBufferId = 0;
+GLuint g_teapotDiffuseTextureId = 0;
+GLuint g_teapotSpecularTextureId = 0;
+
+// Rneder Texture Plane
+GLuint g_planeVertexArrayId = 0;
+GLuint g_planeVertexBufferId = 0;
+GLuint g_planeTexCoordBufferId = 0;
+GLuint g_planeIndexBufferId = 0;
+
+// Misc
 std::stringstream g_messageStream;
 
 
@@ -117,6 +138,10 @@ void InitMeshes(const char* i_meshPath);
 void InitTextures();
 void InitCamera();
 void InitLights();
+
+// Render functions
+void RenderTeapot();
+void RenderTexture();
 
 // Update functions
 void Update(float DeltaSeconds);
@@ -144,11 +169,9 @@ int main(int argcp, char** argv)
     {
         const int screen_width = glutGet(GLUT_SCREEN_WIDTH);
         const int screen_height = glutGet(GLUT_SCREEN_HEIGHT);
-        const int window_width = 512;
-        const int window_height = 512;
 
-        glutInitWindowPosition(screen_width / 2 - window_width / 2, screen_height / 2 - window_height / 2);
-        glutInitWindowSize(window_width, window_height);
+        glutInitWindowPosition(screen_width / 2 - WINDOW_WIDTH / 2, screen_height / 2 - WINDOW_HEIGHT / 2);
+        glutInitWindowSize(WINDOW_WIDTH, WINDOW_HEIGHT);
         glutCreateWindow(WINDOW_TITLE);
         glEnable(GL_DEPTH_TEST);
     }
@@ -177,7 +200,6 @@ int main(int argcp, char** argv)
 
     // initialize content
     {
-
         BuildShaders();
         {
             char meshPath[MAX_PATH_LENGTH];
@@ -205,55 +227,19 @@ int main(int argcp, char** argv)
 
 void DisplayFunc()
 {
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-
-    // draw stuff here!
+    g_renderTexture.Bind();
     {
-        g_GLProgramDefault.Bind();
-        {
-            // Set the model transformation
-            cy::Matrix4f model;
-            GetMatrixFromTransform(model, g_meshTransform);
-            g_GLProgramDefault.SetUniformMatrix4("g_transform_model", model.data);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
-            // Set the view transformation
-            cy::Matrix4f view;
-            GetMatrixFromTransform(view, g_cameraTransform);
-            g_GLProgramDefault.SetUniformMatrix4("g_transform_view", view.data);
-
-            // Set the projection transformation
-            g_GLProgramDefault.SetUniformMatrix4("g_transform_projection", g_perspectiveProjection.data);
-
-            // Set the camera position
-            g_GLProgramDefault.SetUniform("g_cameraPosition", g_cameraTransform.Position.x, g_cameraTransform.Position.y, g_cameraTransform.Position.z);
-
-            // Set the light parameters
-            {
-                cy::Matrix4f light;
-                GetMatrixFromTransform(light, g_lightTransform);
-                cy::Point4f lightPosition = model * light * g_lightTransform.Position;
-
-                g_GLProgramDefault.SetUniform("g_lightPosition", lightPosition.x, lightPosition.y, lightPosition.z);
-
-                g_GLProgramDefault.SetUniform("g_ambientLightIntensity", g_ambientLightIntensity.x, g_ambientLightIntensity.y, g_ambientLightIntensity.z);
-                
-                g_GLProgramDefault.SetUniform("g_ambient", g_ambient.x, g_ambient.y, g_ambient.z);                
-                g_GLProgramDefault.SetUniform("g_diffuse", g_diffuse.x, g_diffuse.y, g_diffuse.z);
-                g_GLProgramDefault.SetUniform("g_specular", g_specular.x, g_specular.y, g_specular.z);
-                g_GLProgramDefault.SetUniform("g_shininess", g_shininess);
-            }
-        }
-
-        // Attach and bind textures
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, g_diffuseTextureId);
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, g_specularTextureId);
-
-        // Draw the mesh
-        glDrawArrays(GL_TRIANGLES, 0, g_triMesh.NF() * 3);
+        RenderTeapot();
     }
+    g_renderTexture.Unbind();
+
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glClearColor(0.15f, 0.15f, 0.15f, 1.0f);
+
+    RenderTexture();
 
     glutSwapBuffers();
 }
@@ -292,12 +278,14 @@ void SpecialFunc(int key, int x, int y)
     else
     {
         g_controlPressed = (key == CTRL_KEY);
+        g_altPressed = (key == ALT_KEY);
     }
 }
 
 void SpecialUpFunc(int key, int x, int y)
 {
     g_controlPressed = g_controlPressed ? !(key == CTRL_KEY) : g_controlPressed;
+    g_altPressed = g_altPressed ? !(key == ALT_KEY) : g_altPressed;
 }
 
 void MouseFunc(int button, int state, int x, int y)
@@ -331,7 +319,7 @@ void BuildShaders()
 {
     // Compile Shaders
     g_messageStream.clear();
-    if (g_GLProgramDefault.BuildFiles(VERTEX_SHADER_PATH, FRAGMENT_SHADER_PATH, nullptr, nullptr, nullptr, &g_messageStream) == false)
+    if (g_teapotGLProgram.BuildFiles(MESH_VERTEX_SHADER_PATH, MESH_FRAGMENT_SHADER_PATH, nullptr, nullptr, nullptr, &g_messageStream) == false)
     {
         LOG_ERROR("%s", g_messageStream.str().c_str());
         return;
@@ -339,7 +327,23 @@ void BuildShaders()
 
     // Link Program
     g_messageStream.clear();
-    if (g_GLProgramDefault.Link(&g_messageStream) == false)
+    if (g_teapotGLProgram.Link(&g_messageStream) == false)
+    {
+        LOG_ERROR("%s", g_messageStream.str().c_str());
+        return;
+    }
+
+    // Compile shaders
+    g_messageStream.clear();
+    if (g_planeGLProgram.BuildFiles(PLANE_VERTEX_SHADER_PATH, PLANE_FRAGMENT_SHADER_PATH, nullptr, nullptr, nullptr, &g_messageStream) == false)
+    {
+        LOG_ERROR("%s", g_messageStream.str().c_str());
+        return;
+    }
+
+    // Link Program
+    g_messageStream.clear();
+    if (g_planeGLProgram.Link(&g_messageStream) == false)
     {
         LOG_ERROR("%s", g_messageStream.str().c_str());
         return;
@@ -348,36 +352,39 @@ void BuildShaders()
 
 void InitMeshes(const char* i_meshPath)
 {
+    //================================================
+    // Teapot
+
     // Load the mesh from disk
-    if (g_triMesh.LoadFromFileObj(i_meshPath) == false)
+    if (g_teapotMesh.LoadFromFileObj(i_meshPath) == false)
     {
         LOG_ERROR("Couldn't load mesh file:%s", i_meshPath);
         return;
     }
 
     // Compute additional geometry
-    g_triMesh.ComputeNormals();
-    if (g_triMesh.IsBoundBoxReady() == false)
+    g_teapotMesh.ComputeNormals();
+    if (g_teapotMesh.IsBoundBoxReady() == false)
     {
-        g_triMesh.ComputeBoundingBox();
+        g_teapotMesh.ComputeBoundingBox();
     }
 
     // Initialize the mesh transform
     {
-        g_meshTransform.Orientation.Zero();
-        g_meshTransform.Orientation.x = -90.0f;
-        g_meshTransform.Position.Zero();
-        g_meshTransform.Position.y -= (g_triMesh.GetBoundMax().z + g_triMesh.GetBoundMin().z) * 0.5f;
+        g_teapotTransform.Orientation.Zero();
+        g_teapotTransform.Orientation.x = -90.0f;
+        g_teapotTransform.Position.Zero();
+        g_teapotTransform.Position.y -= (g_teapotMesh.GetBoundMax().z + g_teapotMesh.GetBoundMin().z) * 0.5f;
     }
 
     // Create a vertex array object and make it active
     {
         constexpr GLsizei arrayCount = 1;
-        glGenVertexArrays(arrayCount, &g_vertexArrayId);
+        glGenVertexArrays(arrayCount, &g_teapotVertexArrayId);
         const GLenum errorCode = glGetError();
         if (errorCode == GL_NO_ERROR)
         {
-            glBindVertexArray(g_vertexArrayId);
+            glBindVertexArray(g_teapotVertexArrayId);
             const GLenum errorCode = glGetError();
             if (errorCode != GL_NO_ERROR)
             {
@@ -393,11 +400,11 @@ void InitMeshes(const char* i_meshPath)
     // Create a vertex buffer object and make it active
     {
         constexpr GLsizei bufferCount = 1;
-        glGenBuffers(bufferCount, &g_vertexBufferId);
+        glGenBuffers(bufferCount, &g_teapotVertexBufferId);
         const GLenum errorCode = glGetError();
         if (errorCode == GL_NO_ERROR)
         {
-            glBindBuffer(GL_ARRAY_BUFFER, g_vertexBufferId);
+            glBindBuffer(GL_ARRAY_BUFFER, g_teapotVertexBufferId);
             const GLenum errorCode = glGetError();
             if (errorCode != GL_NO_ERROR)
             {
@@ -412,15 +419,15 @@ void InitMeshes(const char* i_meshPath)
 
     // Assign data to the vertex buffer
     {
-        const size_t bufferSize = sizeof(cy::Point3f) * g_triMesh.NF() * 3;
+        const size_t bufferSize = sizeof(cy::Point3f) * g_teapotMesh.NF() * 3;
         cy::Point3f* vertices = (cy::Point3f*) malloc(bufferSize);
 
-        for (unsigned int i = 0; i < g_triMesh.NF(); ++i)
+        for (unsigned int i = 0; i < g_teapotMesh.NF(); ++i)
         {
-            const cy::TriMesh::TriFace& triFace = g_triMesh.F(i);
-            vertices[i * 3] = g_triMesh.V(triFace.v[0]);
-            vertices[i * 3 + 1] = g_triMesh.V(triFace.v[1]);
-            vertices[i * 3 + 2] = g_triMesh.V(triFace.v[2]);
+            const cy::TriMesh::TriFace& triFace = g_teapotMesh.F(i);
+            vertices[i * 3] = g_teapotMesh.V(triFace.v[0]);
+            vertices[i * 3 + 1] = g_teapotMesh.V(triFace.v[1]);
+            vertices[i * 3 + 2] = g_teapotMesh.V(triFace.v[2]);
         }
 
         glBufferData(GL_ARRAY_BUFFER, bufferSize, vertices, GL_STATIC_DRAW);
@@ -444,7 +451,7 @@ void InitMeshes(const char* i_meshPath)
             glEnableVertexAttribArray(vertexElementLocation);
             if (errorCode != GL_NO_ERROR)
             {
-                LOG_ERROR("OpenGL failed to allocate the index buffer!");
+                LOG_ERROR("OpenGL failed to allocate the vertex attrib pointer!");
             }
         }
     }
@@ -452,11 +459,11 @@ void InitMeshes(const char* i_meshPath)
     // Create a normal buffer object and make it active
     {
         constexpr GLsizei bufferCount = 1;
-        glGenBuffers(bufferCount, &g_normalBufferId);
+        glGenBuffers(bufferCount, &g_teapotNormalBufferId);
         const GLenum errorCode = glGetError();
         if (errorCode == GL_NO_ERROR)
         {
-            glBindBuffer(GL_ARRAY_BUFFER, g_normalBufferId);
+            glBindBuffer(GL_ARRAY_BUFFER, g_teapotNormalBufferId);
             const GLenum errorCode = glGetError();
             if (errorCode != GL_NO_ERROR)
             {
@@ -471,15 +478,15 @@ void InitMeshes(const char* i_meshPath)
 
     // Assign data to the normal buffer
     {
-        const size_t bufferSize = sizeof(cy::Point3f) * g_triMesh.NF() * 3;
+        const size_t bufferSize = sizeof(cy::Point3f) * g_teapotMesh.NF() * 3;
         cy::Point3f* normals = (cy::Point3f*) malloc(bufferSize);
 
-        for (unsigned int i = 0; i < g_triMesh.NF(); ++i)
+        for (unsigned int i = 0; i < g_teapotMesh.NF(); ++i)
         {
-            const cy::TriMesh::TriFace& triFace = g_triMesh.FN(i);
-            normals[i * 3] = g_triMesh.VN(triFace.v[0]);
-            normals[i * 3 + 1] = g_triMesh.VN(triFace.v[1]);
-            normals[i * 3 + 2] = g_triMesh.VN(triFace.v[2]);
+            const cy::TriMesh::TriFace& triFace = g_teapotMesh.FN(i);
+            normals[i * 3] = g_teapotMesh.VN(triFace.v[0]);
+            normals[i * 3 + 1] = g_teapotMesh.VN(triFace.v[1]);
+            normals[i * 3 + 2] = g_teapotMesh.VN(triFace.v[2]);
         }
 
         glBufferData(GL_ARRAY_BUFFER, bufferSize, normals, GL_STATIC_DRAW);
@@ -503,7 +510,7 @@ void InitMeshes(const char* i_meshPath)
             glEnableVertexAttribArray(vertexElementLocation);
             if (errorCode != GL_NO_ERROR)
             {
-                LOG_ERROR("OpenGL failed to allocate the index buffer!");
+                LOG_ERROR("OpenGL failed to allocate the vertex attrib pointer!");
             }
         }
     }
@@ -511,34 +518,34 @@ void InitMeshes(const char* i_meshPath)
     // Create a texture coordinate buffer object and make it active
     {
         constexpr GLsizei bufferCount = 1;
-        glGenBuffers(bufferCount, &g_texCoordBufferId);
+        glGenBuffers(bufferCount, &g_teapotTexCoordBufferId);
         const GLenum errorCode = glGetError();
         if (errorCode == GL_NO_ERROR)
         {
-            glBindBuffer(GL_ARRAY_BUFFER, g_texCoordBufferId);
+            glBindBuffer(GL_ARRAY_BUFFER, g_teapotTexCoordBufferId);
             const GLenum errorCode = glGetError();
             if (errorCode != GL_NO_ERROR)
             {
-                LOG_ERROR("OpenGL failed to bind a new normal buffer!");
+                LOG_ERROR("OpenGL failed to bind a new texture coordinate buffer!");
             }
         }
         else
         {
-            LOG_ERROR("OpenGL failed to get an unused normal buffer!");
+            LOG_ERROR("OpenGL failed to get an unused texture coordinate buffer!");
         }
     }
 
     // Assign data to the texture coordinate buffer
     {
-        const size_t bufferSize = sizeof(cy::Point2f) * g_triMesh.NF() * 3;
+        const size_t bufferSize = sizeof(cy::Point2f) * g_teapotMesh.NF() * 3;
         cy::Point2f* uvs = (cy::Point2f*) malloc(bufferSize);
 
-        for (unsigned int i = 0; i < g_triMesh.NF(); ++i)
+        for (unsigned int i = 0; i < g_teapotMesh.NF(); ++i)
         {
-            const cy::TriMesh::TriFace& triFace = g_triMesh.FT(i);
-            uvs[i * 3] = cy::Point2f(g_triMesh.VT(triFace.v[0]));
-            uvs[i * 3 + 1] = cy::Point2f(g_triMesh.VT(triFace.v[1]));
-            uvs[i * 3 + 2] = cy::Point2f(g_triMesh.VT(triFace.v[2]));
+            const cy::TriMesh::TriFace& triFace = g_teapotMesh.FT(i);
+            uvs[i * 3] = cy::Point2f(g_teapotMesh.VT(triFace.v[0]));
+            uvs[i * 3 + 1] = cy::Point2f(g_teapotMesh.VT(triFace.v[1]));
+            uvs[i * 3 + 2] = cy::Point2f(g_teapotMesh.VT(triFace.v[2]));
         }
 
         glBufferData(GL_ARRAY_BUFFER, bufferSize, uvs, GL_STATIC_DRAW);
@@ -562,7 +569,7 @@ void InitMeshes(const char* i_meshPath)
             glEnableVertexAttribArray(vertexElementLocation);
             if (errorCode != GL_NO_ERROR)
             {
-                LOG_ERROR("OpenGL failed to allocate the index buffer!");
+                LOG_ERROR("OpenGL failed to allocate the vertex attrib pointer!");
             }
         }
     }
@@ -570,11 +577,11 @@ void InitMeshes(const char* i_meshPath)
     // Create an index buffer object and make it active
     {
         constexpr GLsizei bufferCount = 1;
-        glGenBuffers(bufferCount, &g_indexBufferId);
+        glGenBuffers(bufferCount, &g_teapotIndexBufferId);
         const GLenum errorCode = glGetError();
         if (errorCode == GL_NO_ERROR)
         {
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_indexBufferId);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_teapotIndexBufferId);
             const GLenum errorCode = glGetError();
             if (errorCode != GL_NO_ERROR)
             {
@@ -589,8 +596,177 @@ void InitMeshes(const char* i_meshPath)
 
     // Assign data to the index buffer
     {
-        const size_t bufferSize = sizeof(cy::TriMesh::TriFace) * g_triMesh.NF();
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, bufferSize, &g_triMesh.F(0), GL_STATIC_DRAW);
+        const size_t bufferSize = sizeof(cy::TriMesh::TriFace) * g_teapotMesh.NF();
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, bufferSize, &g_teapotMesh.F(0), GL_STATIC_DRAW);
+        const GLenum errorCode = glGetError();
+        if (errorCode != GL_NO_ERROR)
+        {
+            LOG_ERROR("OpenGL failed to allocate the index buffer!");
+        }
+    }
+
+    //================================================
+    // Render Texture Plane
+
+    // Initialize the plane's transform
+    g_planeTransform.Position.z = -55.0f;
+
+    // Create a vertex array object and make it active
+    {
+        constexpr GLsizei arrayCount = 1;
+        glGenVertexArrays(arrayCount, &g_planeVertexArrayId);
+        const GLenum errorCode = glGetError();
+        if (errorCode == GL_NO_ERROR)
+        {
+            glBindVertexArray(g_planeVertexArrayId);
+            const GLenum errorCode = glGetError();
+            if (errorCode != GL_NO_ERROR)
+            {
+                LOG_ERROR("OpenGL failed to bind a new vertex array!");
+            }
+        }
+        else
+        {
+            LOG_ERROR("OpenGL failed to get an unused vertex array!");
+        }
+    }
+
+    // Create a vertex buffer object and make it active
+    {
+        constexpr GLsizei bufferCount = 1;
+        glGenBuffers(bufferCount, &g_planeVertexBufferId);
+        const GLenum errorCode = glGetError();
+        if (errorCode == GL_NO_ERROR)
+        {
+            glBindBuffer(GL_ARRAY_BUFFER, g_planeVertexBufferId);
+            const GLenum errorCode = glGetError();
+            if (errorCode != GL_NO_ERROR)
+            {
+                LOG_ERROR("OpenGL failed to bind a new vertex buffer!");
+            }
+        }
+        else
+        {
+            LOG_ERROR("OpenGL failed to get an unused vertex buffer!");
+        }
+    }
+
+    // Assign data to the vertex buffer
+    {
+        constexpr uint8_t numVertices = 4;
+        constexpr float halfSize = 17.5f;
+        const cy::Point3f vertices[numVertices] = {
+            { -halfSize, -halfSize, 0.0f },     // bottom-left
+            { halfSize, -halfSize, 0.0f },      // bottom-right
+            { halfSize, halfSize, 0.0f },       // top-right
+            { -halfSize, halfSize, 0.0f }       // top-left
+        };
+
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+        const GLenum errorCode = glGetError();
+        if (errorCode != GL_NO_ERROR)
+        {
+            LOG_ERROR("OpenGL failed to allocate the vertex buffer!");
+        }
+    }
+
+    // Initialize vertex position attribute
+    {
+        constexpr GLuint vertexElementLocation = 0;
+        constexpr GLuint elementCount = 3;
+        glVertexAttribPointer(vertexElementLocation, elementCount, GL_FLOAT, GL_FALSE, 0, 0);
+        const GLenum errorCode = glGetError();
+        if (errorCode == GL_NO_ERROR)
+        {
+            glEnableVertexAttribArray(vertexElementLocation);
+            if (errorCode != GL_NO_ERROR)
+            {
+                LOG_ERROR("OpenGL failed to allocate the vertex attrib pointer!");
+            }
+        }
+    }
+
+    // Create a texture coordinate buffer object and make it active
+    {
+        constexpr GLsizei bufferCount = 1;
+        glGenBuffers(bufferCount, &g_planeTexCoordBufferId);
+        const GLenum errorCode = glGetError();
+        if (errorCode == GL_NO_ERROR)
+        {
+            glBindBuffer(GL_ARRAY_BUFFER, g_planeTexCoordBufferId);
+            const GLenum errorCode = glGetError();
+            if (errorCode != GL_NO_ERROR)
+            {
+                LOG_ERROR("OpenGL failed to bind a new texture coordinate buffer!");
+            }
+        }
+        else
+        {
+            LOG_ERROR("OpenGL failed to get an unused texture coordinate buffer!");
+        }
+    }
+
+    // Assign data to the texture coordinate buffer
+    {
+        constexpr uint8_t numUVs = 4;
+        const cy::Point2f uvs[numUVs] = {
+            { 0.0f, 0.0f },     // bottom-left
+            { 1.0f, 0.0f },     // bottom-right
+            { 1.0f, 1.0f },     // top-right
+            { 0.0f, 1.0f }      // top-left
+        };
+
+        glBufferData(GL_ARRAY_BUFFER, sizeof(uvs), uvs, GL_STATIC_DRAW);
+        const GLenum errorCode = glGetError();
+        if (errorCode != GL_NO_ERROR)
+        {
+            LOG_ERROR("OpenGL failed to allocate the texture coordinate buffer!");
+        }
+    }
+
+    // Initialize the texture coordinate attribute
+    {
+        constexpr GLuint vertexElementLocation = 1;
+        constexpr GLuint elementCount = 2;
+        glVertexAttribPointer(vertexElementLocation, elementCount, GL_FLOAT, GL_FALSE, 0, 0);
+        const GLenum errorCode = glGetError();
+        if (errorCode == GL_NO_ERROR)
+        {
+            glEnableVertexAttribArray(vertexElementLocation);
+            if (errorCode != GL_NO_ERROR)
+            {
+                LOG_ERROR("OpenGL failed to allocate the index buffer!");
+            }
+        }
+    }
+
+    // Create an index buffer object and make it active
+    {
+        constexpr GLsizei bufferCount = 1;
+        glGenBuffers(bufferCount, &g_planeIndexBufferId);
+        const GLenum errorCode = glGetError();
+        if (errorCode == GL_NO_ERROR)
+        {
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_planeIndexBufferId);
+            const GLenum errorCode = glGetError();
+            if (errorCode != GL_NO_ERROR)
+            {
+                LOG_ERROR("OpenGL failed to bind a new index buffer!");
+            }
+        }
+        else
+        {
+            LOG_ERROR("OpenGL failed to get an unused index buffer!");
+        }
+    }
+
+    // Assign data to the index buffer
+    {
+        constexpr uint8_t numIndices = 6;
+        constexpr uint8_t indices[numIndices] = {
+            0, 1, 2, 0, 2, 3
+        };
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
         const GLenum errorCode = glGetError();
         if (errorCode != GL_NO_ERROR)
         {
@@ -602,7 +778,7 @@ void InitMeshes(const char* i_meshPath)
 void InitTextures()
 {
     // Check if the mesh has materials
-    const int numMaterials = g_triMesh.NM();
+    const int numMaterials = g_teapotMesh.NM();
     if (numMaterials <= 0)
     {
         return;
@@ -610,7 +786,7 @@ void InitTextures()
 
     // Extract the first material from the mesh
     constexpr uint8_t firstMaterialIndex = 0;
-    const cy::TriMesh::Mtl& material = g_triMesh.M(firstMaterialIndex);
+    const cy::TriMesh::Mtl& material = g_teapotMesh.M(firstMaterialIndex);
 
     // Set lighting parameters
     g_ambient.Set(material.Ka[0], material.Ka[1], material.Ka[2]);
@@ -632,9 +808,9 @@ void InitTextures()
     else
     {
         // Get a texture id
-        glGenTextures(1, &g_diffuseTextureId);
+        glGenTextures(1, &g_teapotDiffuseTextureId);
         // Bind the texture
-        glBindTexture(GL_TEXTURE_2D, g_diffuseTextureId);
+        glBindTexture(GL_TEXTURE_2D, g_teapotDiffuseTextureId);
         // Set the texture data
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, textureData);
         // Set parameters
@@ -663,9 +839,9 @@ void InitTextures()
     else
     {
         // Get a texture id
-        glGenTextures(1, &g_specularTextureId);
+        glGenTextures(1, &g_teapotSpecularTextureId);
         // Bind the texture
-        glBindTexture(GL_TEXTURE_2D, g_specularTextureId);
+        glBindTexture(GL_TEXTURE_2D, g_teapotSpecularTextureId);
         // Set the texture data
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, textureData);
         // Set trilinear filtering parameters
@@ -677,6 +853,13 @@ void InitTextures()
 
         // Free the texture
         free(textureData);
+    }
+
+    // Initialize the render texture
+    {
+        constexpr bool useDepthBuffer = true;
+        constexpr uint8_t numChannels = 3;
+        g_renderTexture.Initialize(useDepthBuffer, numChannels, WINDOW_WIDTH, WINDOW_HEIGHT);
     }
 }
 
@@ -711,6 +894,88 @@ void InitLights()
 }
 
 //~====================================================================================================
+// Render functions
+
+void RenderTeapot()
+{
+    g_teapotGLProgram.Bind();
+    {
+        // Set the model transformation
+        cy::Matrix4f model;
+        GetMatrixFromTransform(model, g_teapotTransform);
+        g_teapotGLProgram.SetUniformMatrix4("g_transform_model", model.data);
+
+        // Set the view transformation
+        cy::Matrix4f view;
+        GetMatrixFromTransform(view, g_cameraTransform);
+        g_teapotGLProgram.SetUniformMatrix4("g_transform_view", view.data);
+
+        // Set the projection transformation
+        g_teapotGLProgram.SetUniformMatrix4("g_transform_projection", g_perspectiveProjection.data);
+
+        // Set the camera position
+        g_teapotGLProgram.SetUniform("g_cameraPosition", g_cameraTransform.Position.x, g_cameraTransform.Position.y, g_cameraTransform.Position.z);
+
+        // Set the light parameters
+        {
+            cy::Matrix4f light;
+            GetMatrixFromTransform(light, g_lightTransform);
+            cy::Point4f lightPosition = model * light * g_lightTransform.Position;
+
+            g_teapotGLProgram.SetUniform("g_lightPosition", lightPosition.x, lightPosition.y, lightPosition.z);
+            g_teapotGLProgram.SetUniform("g_ambientLightIntensity", g_ambientLightIntensity.x, g_ambientLightIntensity.y, g_ambientLightIntensity.z);
+            g_teapotGLProgram.SetUniform("g_ambient", g_ambient.x, g_ambient.y, g_ambient.z);
+            g_teapotGLProgram.SetUniform("g_diffuse", g_diffuse.x, g_diffuse.y, g_diffuse.z);
+            g_teapotGLProgram.SetUniform("g_specular", g_specular.x, g_specular.y, g_specular.z);
+            g_teapotGLProgram.SetUniform("g_shininess", g_shininess);
+        }
+    }
+
+    // Attach and bind textures
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, g_teapotDiffuseTextureId);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, g_teapotSpecularTextureId);
+
+    // Draw the mesh
+    {
+        glBindVertexArray(g_teapotVertexArrayId);
+        glDrawArrays(GL_TRIANGLES, 0, g_teapotMesh.NF() * 3);
+    }
+}
+
+void RenderTexture()
+{
+    g_planeGLProgram.Bind();
+    {
+        // Set the model transformation
+        cy::Matrix4f model;
+        GetMatrixFromTransform(model, g_planeTransform);
+        g_planeGLProgram.SetUniformMatrix4("g_transform_model", model.data);
+
+        // Set the view transformation
+        cy::Matrix4f view;
+        GetMatrixFromTransform(view, g_cameraTransform);
+        g_planeGLProgram.SetUniformMatrix4("g_transform_view", view.data);
+
+        // Set the projection transformation
+        g_planeGLProgram.SetUniformMatrix4("g_transform_projection", g_perspectiveProjection.data);
+    }
+
+    // Attach and bind textures
+    glActiveTexture(GL_TEXTURE0);
+    g_renderTexture.BindTexture();
+
+    // Draw the mesh
+    {
+        glBindVertexArray(g_planeVertexArrayId);
+
+        static constexpr uint8_t indexCount = 6;
+        glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_BYTE, 0);
+    }
+}
+
+//~====================================================================================================
 // Update functions
 
 void Update(float DeltaSeconds)
@@ -728,6 +993,11 @@ void Update(float DeltaSeconds)
         {
             g_lightTransform.Orientation.y += float(deltaMouseX) * rotationDamping;
             g_lightTransform.Orientation.x += float(deltaMouseY) * rotationDamping;
+        }
+        else if (g_altPressed)
+        {
+            g_planeTransform.Orientation.y += float(deltaMouseX) * rotationDamping;
+            g_planeTransform.Orientation.x += float(deltaMouseY) * rotationDamping;
         }
         else
         {
