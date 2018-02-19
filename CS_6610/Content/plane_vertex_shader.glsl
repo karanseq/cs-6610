@@ -21,6 +21,6 @@ layout(location = 0) out vec2 o_uv;
 
 void main()
 {
-	gl_Position = g_transform_projection * /*g_transform_view **/ g_transform_model * vec4(i_position, 1.0);
+	gl_Position = g_transform_projection * g_transform_model * vec4(i_position, 1.0);
 	o_uv = i_uv;
 }
