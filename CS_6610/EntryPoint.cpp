@@ -860,6 +860,9 @@ void InitTextures()
         constexpr bool useDepthBuffer = true;
         constexpr uint8_t numChannels = 3;
         g_renderTexture.Initialize(useDepthBuffer, numChannels, WINDOW_WIDTH, WINDOW_HEIGHT);
+        g_renderTexture.SetTextureFilteringMode(GL_LINEAR, 0);
+        g_renderTexture.SetTextureMaxAnisotropy();
+        g_renderTexture.BuildTextureMipmaps();
     }
 }
 
@@ -1015,7 +1018,14 @@ void Update(float DeltaSeconds)
         g_cameraTransform.Position.y += float(deltaMouseY) * -movementDamping;
     }
 
-    g_cameraTransform.Position.z += float(deltaMouseZ);
+    if (g_altPressed)
+    {
+        g_planeTransform.Position.z += float(deltaMouseZ);
+    }
+    else
+    {
+        g_cameraTransform.Position.z += float(deltaMouseZ);        
+    }
 
     g_prevMouseX = g_currMouseX;
     g_prevMouseY = g_currMouseY;
