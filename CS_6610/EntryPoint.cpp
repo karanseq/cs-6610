@@ -32,12 +32,15 @@ constexpr char* WINDOW_TITLE = "Karan's CS_6610 Playground";
 constexpr uint8_t CONTENT_PATH_LENGTH = 22;
 constexpr char* CONTENT_PATH = "..\\CS_6610\\Content\\";
 constexpr char* SKYBOX_OBJ_PATH = "..\\CS_6610\\Content\\cube.obj";
+constexpr char* SPHERE_OBJ_PATH = "..\\CS_6610\\Content\\sphere.obj";
 constexpr char* MESH_VERTEX_SHADER_PATH = "..\\CS_6610\\Content\\mesh_vertex_shader.glsl";
 constexpr char* MESH_FRAGMENT_SHADER_PATH = "..\\CS_6610\\Content\\mesh_fragment_shader.glsl";
 constexpr char* PLANE_VERTEX_SHADER_PATH = "..\\CS_6610\\Content\\plane_vertex_shader.glsl";
 constexpr char* PLANE_FRAGMENT_SHADER_PATH = "..\\CS_6610\\Content\\plane_fragment_shader.glsl";
 constexpr char* SKYBOX_VERTEX_SHADER_PATH = "..\\CS_6610\\Content\\skybox_vertex_shader.glsl";
 constexpr char* SKYBOX_FRAGMENT_SHADER_PATH = "..\\CS_6610\\Content\\skybox_fragment_shader.glsl";
+constexpr char* SPHERE_VERTEX_SHADER_PATH = "..\\CS_6610\\Content\\mesh_vertex_shader_reflective.glsl";
+constexpr char* SPHERE_FRAGMENT_SHADER_PATH = "..\\CS_6610\\Content\\mesh_fragment_shader_reflective.glsl";
 constexpr uint16_t MAX_PATH_LENGTH = 1024;
 constexpr uint16_t WINDOW_WIDTH = 512;
 constexpr uint16_t WINDOW_HEIGHT = 512;
@@ -92,10 +95,12 @@ cy::Matrix4f g_perspectiveProjection;
 // Meshes
 cy::TriMesh g_teapotMesh;
 cy::TriMesh g_skyboxMesh;
+cy::TriMesh g_sphereMesh;
 
 // Transforms
 Transform g_teapotTransform;
 Transform g_planeTransform;
+Transform g_sphereTransform;
 
 // Light
 Transform g_lightTransform;
@@ -110,13 +115,15 @@ cy::GLRenderTexture2D g_renderTexture;
 
 // Shader
 cy::GLSLProgram g_teapotGLProgram;
-cy::GLSLProgram g_planeGLProgram;
 cy::GLSLProgram g_skyboxGLProgram;
+cy::GLSLProgram g_sphereGLProgram;
+cy::GLSLProgram g_planeGLProgram;
 
 // Buffer IDs
 // Teapot
 BufferIdGroup g_teapotBufferIds;
 BufferIdGroup g_skyboxBufferIds;
+BufferIdGroup g_sphereBufferIds;
 BufferIdGroup g_planeBufferIds;
 
 GLuint g_skyboxTextureId = 0;
@@ -161,6 +168,7 @@ void InitLights();
 void RenderSkybox();
 void RenderTeapot();
 void RenderTexture();
+void RenderSphere();
 
 // Update functions
 void Update(float DeltaSeconds);
@@ -246,20 +254,21 @@ int main(int argcp, char** argv)
 
 void DisplayFunc()
 {
-    g_renderTexture.Bind();
-    {
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    //g_renderTexture.Bind();
+    //{
+    //    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    //    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
-        RenderTeapot();
-    }
-    g_renderTexture.Unbind();
+    //    RenderTeapot();
+    //}
+    //g_renderTexture.Unbind();
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glClearColor(0.15f, 0.15f, 0.15f, 1.0f);
 
     RenderSkybox();
-    RenderTexture();
+    //RenderTexture();
+    RenderSphere();
 
     glutSwapBuffers();
 }
@@ -340,6 +349,7 @@ void BuildShaders()
     BuildShader(g_teapotGLProgram, MESH_VERTEX_SHADER_PATH, MESH_FRAGMENT_SHADER_PATH);
     BuildShader(g_planeGLProgram, PLANE_VERTEX_SHADER_PATH, PLANE_FRAGMENT_SHADER_PATH);
     BuildShader(g_skyboxGLProgram, SKYBOX_VERTEX_SHADER_PATH, SKYBOX_FRAGMENT_SHADER_PATH);
+    BuildShader(g_sphereGLProgram, SPHERE_VERTEX_SHADER_PATH, SPHERE_FRAGMENT_SHADER_PATH);
 }
 
 bool BuildShader(cy::GLSLProgram& o_program, 
@@ -383,6 +393,21 @@ void InitMeshes(const char* i_meshPath)
         g_teapotTransform.orientation.x = -90.0f;
         g_teapotTransform.position.Zero();
         g_teapotTransform.position.y -= (g_teapotMesh.GetBoundMax().z + g_teapotMesh.GetBoundMin().z) * 0.5f;
+    }
+
+    //================================================
+    // Sphere
+    {
+        constexpr bool loadNormals = true;
+        constexpr bool loadTexCoords = true;
+        InitMeshFromObj(g_sphereMesh,
+            g_sphereBufferIds,
+            SPHERE_OBJ_PATH,
+            loadNormals,
+            loadTexCoords);
+
+        g_sphereTransform.orientation.Zero();
+        g_sphereTransform.position.Zero();
     }
 
     //================================================
@@ -891,6 +916,52 @@ void RenderTexture()
 
         static constexpr uint8_t indexCount = 6;
         glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_BYTE, 0);
+    }
+}
+
+void RenderSphere()
+{
+    g_sphereGLProgram.Bind();
+    {
+        // Set the model transformation
+        cy::Matrix4f model;
+        GetMatrixFromTransform(model, g_sphereTransform);
+        g_sphereGLProgram.SetUniformMatrix4("g_transform_model", model.data);
+
+        // Set the view transformation
+        cy::Matrix4f view;
+        GetMatrixFromTransform(view, g_cameraTransform);
+        g_sphereGLProgram.SetUniformMatrix4("g_transform_view", view.data);
+
+        // Set the projection transformation
+        g_sphereGLProgram.SetUniformMatrix4("g_transform_projection", g_perspectiveProjection.data);
+
+        // Set the camera position
+        g_sphereGLProgram.SetUniform("g_cameraPosition", g_cameraTransform.position.x, g_cameraTransform.position.y, g_cameraTransform.position.z);
+
+        // Set the light parameters
+        {
+            cy::Matrix4f light;
+            GetMatrixFromTransform(light, g_lightTransform);
+            cy::Point4f lightPosition = model * light * g_lightTransform.position;
+
+            g_sphereGLProgram.SetUniform("g_lightPosition", lightPosition.x, lightPosition.y, lightPosition.z);
+            g_sphereGLProgram.SetUniform("g_ambientLightIntensity", g_ambientLightIntensity.x, g_ambientLightIntensity.y, g_ambientLightIntensity.z);
+            g_sphereGLProgram.SetUniform("g_ambient", g_ambient.x, g_ambient.y, g_ambient.z);
+            g_sphereGLProgram.SetUniform("g_diffuse", g_diffuse.x, g_diffuse.y, g_diffuse.z);
+            g_sphereGLProgram.SetUniform("g_specular", g_specular.x, g_specular.y, g_specular.z);
+            g_sphereGLProgram.SetUniform("g_shininess", g_shininess);
+        }
+    }
+
+    // Attach and bind textures
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, g_skyboxTextureId);
+
+    // Draw the mesh
+    {
+        glBindVertexArray(g_sphereBufferIds.vertexArrayId);
+        glDrawArrays(GL_TRIANGLES, 0, g_sphereMesh.NF() * 3);
     }
 }
 
