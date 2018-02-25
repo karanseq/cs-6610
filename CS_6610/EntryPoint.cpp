@@ -921,11 +921,13 @@ void RenderTexture()
 
 void RenderSphere()
 {
+    static constexpr bool useSphereInstead = false;
+
     g_sphereGLProgram.Bind();
     {
         // Set the model transformation
         cy::Matrix4f model;
-        GetMatrixFromTransform(model, g_sphereTransform);
+        GetMatrixFromTransform(model, useSphereInstead ? g_sphereTransform : g_teapotTransform);
         g_sphereGLProgram.SetUniformMatrix4("g_transform_model", model.data);
 
         // Set the view transformation
@@ -960,8 +962,8 @@ void RenderSphere()
 
     // Draw the mesh
     {
-        glBindVertexArray(g_sphereBufferIds.vertexArrayId);
-        glDrawArrays(GL_TRIANGLES, 0, g_sphereMesh.NF() * 3);
+        glBindVertexArray(useSphereInstead ? g_sphereBufferIds.vertexArrayId : g_teapotBufferIds.vertexArrayId);
+        glDrawArrays(GL_TRIANGLES, 0, (useSphereInstead ? g_sphereMesh.NF() : g_teapotMesh.NF()) * 3);
     }
 }
 
