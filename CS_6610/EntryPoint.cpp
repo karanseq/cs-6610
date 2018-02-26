@@ -114,9 +114,9 @@ float g_shininess = 100.0f;
 cy::GLRenderTexture2D g_renderTexture;
 
 // Shader
-cy::GLSLProgram g_teapotGLProgram;
+cy::GLSLProgram g_meshGLProgram;
 cy::GLSLProgram g_skyboxGLProgram;
-cy::GLSLProgram g_sphereGLProgram;
+cy::GLSLProgram g_reflectiveMeshGLProgram;
 cy::GLSLProgram g_planeGLProgram;
 
 // Buffer IDs
@@ -165,10 +165,9 @@ void InitCamera();
 void InitLights();
 
 // Render functions
-void RenderSkybox();
-void RenderTeapot();
-void RenderTexture();
-void RenderSphere();
+void RenderSkybox(const cy::Matrix4f& i_viewNoTranslation);
+void RenderTexturePlane();
+void RenderMesh(bool i_isMeshReflective, const cy::Matrix4f& i_view);
 
 // Update functions
 void Update(float DeltaSeconds);
@@ -254,21 +253,66 @@ int main(int argcp, char** argv)
 
 void DisplayFunc()
 {
-    //g_renderTexture.Bind();
-    //{
-    //    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    //    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    // Render the skybox & mesh to texture
+    g_renderTexture.Bind();
+    {
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        //glClearColor(0.15f, 0.15f, 0.15f, 1.0f);
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
-    //    RenderTeapot();
-    //}
-    //g_renderTexture.Unbind();
+        // Get the reflected camera transform
+        Transform cameraTransform_reflected = g_cameraTransform;
+        cameraTransform_reflected.orientation.x *= -1.0f;
+        //cameraTransform_reflected.orientation.y *= -1.0f;
 
+        // Render the skybox
+        {
+            cy::Matrix4f view;
+
+            Transform cameraTransform_reflected_noTranslation = cameraTransform_reflected;
+            cameraTransform_reflected_noTranslation.position.Zero();
+            GetMatrixFromTransform(view, cameraTransform_reflected_noTranslation);
+
+            RenderSkybox(view);
+        }
+
+        // Render the mesh
+        {
+            cy::Matrix4f view;
+            GetMatrixFromTransform(view, cameraTransform_reflected);
+
+            static constexpr bool isReflectiveMesh = true;
+            RenderMesh(isReflectiveMesh, view);
+        }
+    }
+    g_renderTexture.Unbind();
+
+    // Render the scene
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    //glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClearColor(0.15f, 0.15f, 0.15f, 1.0f);
 
-    RenderSkybox();
-    //RenderTexture();
-    RenderSphere();
+    // Render the skybox
+    {
+        cy::Matrix4f view;
+
+        Transform cameraTransform_noTranslation = g_cameraTransform;
+        cameraTransform_noTranslation.position.Zero();
+        GetMatrixFromTransform(view, cameraTransform_noTranslation);
+
+        RenderSkybox(view);
+    }
+
+    //// Render the mesh
+    {
+        cy::Matrix4f view;
+        GetMatrixFromTransform(view, g_cameraTransform);
+
+        static constexpr bool isReflectiveMesh = true;
+        RenderMesh(isReflectiveMesh, view);
+    }
+
+    RenderTexturePlane();
 
     glutSwapBuffers();
 }
@@ -346,10 +390,10 @@ void MouseWheelFunc(int button, int dir, int x, int y)
 
 void BuildShaders()
 {
-    BuildShader(g_teapotGLProgram, MESH_VERTEX_SHADER_PATH, MESH_FRAGMENT_SHADER_PATH);
+    BuildShader(g_meshGLProgram, MESH_VERTEX_SHADER_PATH, MESH_FRAGMENT_SHADER_PATH);
     BuildShader(g_planeGLProgram, PLANE_VERTEX_SHADER_PATH, PLANE_FRAGMENT_SHADER_PATH);
     BuildShader(g_skyboxGLProgram, SKYBOX_VERTEX_SHADER_PATH, SKYBOX_FRAGMENT_SHADER_PATH);
-    BuildShader(g_sphereGLProgram, SPHERE_VERTEX_SHADER_PATH, SPHERE_FRAGMENT_SHADER_PATH);
+    BuildShader(g_reflectiveMeshGLProgram, SPHERE_VERTEX_SHADER_PATH, SPHERE_FRAGMENT_SHADER_PATH);
 }
 
 bool BuildShader(cy::GLSLProgram& o_program, 
@@ -423,7 +467,8 @@ void InitMeshes(const char* i_meshPath)
     // Render Texture Plane
 
     // Initialize the plane's transform
-    g_planeTransform.position.z = -55.0f;
+    g_planeTransform.position.y = g_teapotTransform.position.y;
+    g_planeTransform.orientation.x = -90.0f;
 
     // Create a vertex array object and make it active
     {
@@ -442,7 +487,7 @@ void InitMeshes(const char* i_meshPath)
     // Assign data to the vertex buffer
     {
         constexpr uint8_t numVertices = 4;
-        constexpr float halfSize = 17.5f;
+        constexpr float halfSize = 35.0f;
         const cy::Point3f vertices[numVertices] = {
             { -halfSize, -halfSize, 0.0f },     // bottom-left
             { halfSize, -halfSize, 0.0f },      // bottom-right
@@ -780,8 +825,10 @@ void InitCamera()
     // Initialize the transform
     {
         g_cameraTransform.orientation.Zero();
+        g_cameraTransform.orientation.x = 30.0f;
         g_cameraTransform.position.Zero();
-        g_cameraTransform.position.z = -50.0f;
+        g_cameraTransform.position.y = -g_teapotTransform.position.y;
+        g_cameraTransform.position.z = -100.0f;
     }
 
     // Initialize the perspective projection matrix
@@ -808,20 +855,14 @@ void InitLights()
 //~====================================================================================================
 // Render functions
 
-void RenderSkybox()
+void RenderSkybox(const cy::Matrix4f& i_viewNoTranslation)
 {
     glDepthMask(GL_FALSE);
 
     g_skyboxGLProgram.Bind();
     {
         // Set the view transformation
-        cy::Matrix4f view;
-        
-        Transform cameraTransform_noTranslation = g_cameraTransform;
-        cameraTransform_noTranslation.position.Zero();
-        GetMatrixFromTransform(view, cameraTransform_noTranslation);
-
-        g_skyboxGLProgram.SetUniformMatrix4("g_transform_view", view.data);
+        g_skyboxGLProgram.SetUniformMatrix4("g_transform_view", i_viewNoTranslation.data);
 
         // Set the projection transformation
         g_skyboxGLProgram.SetUniformMatrix4("g_transform_projection", g_perspectiveProjection.data);
@@ -840,55 +881,7 @@ void RenderSkybox()
     glDepthMask(GL_TRUE);
 }
 
-void RenderTeapot()
-{
-    g_teapotGLProgram.Bind();
-    {
-        // Set the model transformation
-        cy::Matrix4f model;
-        GetMatrixFromTransform(model, g_teapotTransform);
-        g_teapotGLProgram.SetUniformMatrix4("g_transform_model", model.data);
-
-        // Set the view transformation
-        cy::Matrix4f view;
-        GetMatrixFromTransform(view, g_cameraTransform);
-        g_teapotGLProgram.SetUniformMatrix4("g_transform_view", view.data);
-
-        // Set the projection transformation
-        g_teapotGLProgram.SetUniformMatrix4("g_transform_projection", g_perspectiveProjection.data);
-
-        // Set the camera position
-        g_teapotGLProgram.SetUniform("g_cameraPosition", g_cameraTransform.position.x, g_cameraTransform.position.y, g_cameraTransform.position.z);
-
-        // Set the light parameters
-        {
-            cy::Matrix4f light;
-            GetMatrixFromTransform(light, g_lightTransform);
-            cy::Point4f lightPosition = model * light * g_lightTransform.position;
-
-            g_teapotGLProgram.SetUniform("g_lightPosition", lightPosition.x, lightPosition.y, lightPosition.z);
-            g_teapotGLProgram.SetUniform("g_ambientLightIntensity", g_ambientLightIntensity.x, g_ambientLightIntensity.y, g_ambientLightIntensity.z);
-            g_teapotGLProgram.SetUniform("g_ambient", g_ambient.x, g_ambient.y, g_ambient.z);
-            g_teapotGLProgram.SetUniform("g_diffuse", g_diffuse.x, g_diffuse.y, g_diffuse.z);
-            g_teapotGLProgram.SetUniform("g_specular", g_specular.x, g_specular.y, g_specular.z);
-            g_teapotGLProgram.SetUniform("g_shininess", g_shininess);
-        }
-    }
-
-    // Attach and bind textures
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, g_teapotDiffuseTextureId);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, g_teapotSpecularTextureId);
-
-    // Draw the mesh
-    {
-        glBindVertexArray(g_teapotBufferIds.vertexArrayId);
-        glDrawArrays(GL_TRIANGLES, 0, g_teapotMesh.NF() * 3);
-    }
-}
-
-void RenderTexture()
+void RenderTexturePlane()
 {
     g_planeGLProgram.Bind();
     {
@@ -901,6 +894,14 @@ void RenderTexture()
         cy::Matrix4f view;
         GetMatrixFromTransform(view, g_cameraTransform);
         g_planeGLProgram.SetUniformMatrix4("g_transform_view", view.data);
+
+        // Get the reflected camera transform
+        Transform cameraTransform_reflected = g_cameraTransform;
+        cameraTransform_reflected.orientation.x *= -1.0f;
+
+        cy::Matrix4f viewReflected;
+        GetMatrixFromTransform(viewReflected, cameraTransform_reflected);
+        g_planeGLProgram.SetUniformMatrix4("g_transform_viewReflected", viewReflected.data);
 
         // Set the projection transformation
         g_planeGLProgram.SetUniformMatrix4("g_transform_projection", g_perspectiveProjection.data);
@@ -919,27 +920,26 @@ void RenderTexture()
     }
 }
 
-void RenderSphere()
+void RenderMesh(bool i_isMeshReflective, const cy::Matrix4f& i_view)
 {
     static constexpr bool useSphereInstead = false;
 
-    g_sphereGLProgram.Bind();
+    cy::GLSLProgram& activeProgram = i_isMeshReflective ? g_reflectiveMeshGLProgram : g_meshGLProgram;
+    activeProgram.Bind();
     {
         // Set the model transformation
         cy::Matrix4f model;
         GetMatrixFromTransform(model, useSphereInstead ? g_sphereTransform : g_teapotTransform);
-        g_sphereGLProgram.SetUniformMatrix4("g_transform_model", model.data);
+        activeProgram.SetUniformMatrix4("g_transform_model", model.data);
 
         // Set the view transformation
-        cy::Matrix4f view;
-        GetMatrixFromTransform(view, g_cameraTransform);
-        g_sphereGLProgram.SetUniformMatrix4("g_transform_view", view.data);
+        activeProgram.SetUniformMatrix4("g_transform_view", i_view.data);
 
         // Set the projection transformation
-        g_sphereGLProgram.SetUniformMatrix4("g_transform_projection", g_perspectiveProjection.data);
+        activeProgram.SetUniformMatrix4("g_transform_projection", g_perspectiveProjection.data);
 
         // Set the camera position
-        g_sphereGLProgram.SetUniform("g_cameraPosition", g_cameraTransform.position.x, g_cameraTransform.position.y, g_cameraTransform.position.z);
+        activeProgram.SetUniform("g_cameraPosition", g_cameraTransform.position.x, g_cameraTransform.position.y, g_cameraTransform.position.z);
 
         // Set the light parameters
         {
@@ -947,18 +947,28 @@ void RenderSphere()
             GetMatrixFromTransform(light, g_lightTransform);
             cy::Point4f lightPosition = model * light * g_lightTransform.position;
 
-            g_sphereGLProgram.SetUniform("g_lightPosition", lightPosition.x, lightPosition.y, lightPosition.z);
-            g_sphereGLProgram.SetUniform("g_ambientLightIntensity", g_ambientLightIntensity.x, g_ambientLightIntensity.y, g_ambientLightIntensity.z);
-            g_sphereGLProgram.SetUniform("g_ambient", g_ambient.x, g_ambient.y, g_ambient.z);
-            g_sphereGLProgram.SetUniform("g_diffuse", g_diffuse.x, g_diffuse.y, g_diffuse.z);
-            g_sphereGLProgram.SetUniform("g_specular", g_specular.x, g_specular.y, g_specular.z);
-            g_sphereGLProgram.SetUniform("g_shininess", g_shininess);
+            activeProgram.SetUniform("g_lightPosition", lightPosition.x, lightPosition.y, lightPosition.z);
+            activeProgram.SetUniform("g_ambientLightIntensity", g_ambientLightIntensity.x, g_ambientLightIntensity.y, g_ambientLightIntensity.z);
+            activeProgram.SetUniform("g_ambient", g_ambient.x, g_ambient.y, g_ambient.z);
+            activeProgram.SetUniform("g_diffuse", g_diffuse.x, g_diffuse.y, g_diffuse.z);
+            activeProgram.SetUniform("g_specular", g_specular.x, g_specular.y, g_specular.z);
+            activeProgram.SetUniform("g_shininess", g_shininess);
         }
     }
 
     // Attach and bind textures
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, g_skyboxTextureId);
+    if (i_isMeshReflective)
+    {
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, g_skyboxTextureId);
+    }
+    else
+    {
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, g_teapotDiffuseTextureId);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, g_teapotSpecularTextureId);
+    }
 
     // Draw the mesh
     {
@@ -986,11 +996,11 @@ void Update(float DeltaSeconds)
             g_lightTransform.orientation.y += float(deltaMouseX) * rotationDamping;
             g_lightTransform.orientation.x += float(deltaMouseY) * rotationDamping;
         }
-        else if (g_altPressed)
-        {
-            g_planeTransform.orientation.y += float(deltaMouseX) * rotationDamping;
-            g_planeTransform.orientation.x += float(deltaMouseY) * rotationDamping;
-        }
+        //else if (g_altPressed)
+        //{
+        //    //g_planeTransform.orientation.y += float(deltaMouseX) * rotationDamping;
+        //    g_planeTransform.orientation.x += float(deltaMouseY) * rotationDamping;
+        //}
         else
         {
             g_cameraTransform.orientation.y += float(deltaMouseX) * rotationDamping;
@@ -999,21 +1009,30 @@ void Update(float DeltaSeconds)
     }
 
     // Update camera location
-    if (g_rightMouseButtonPressed)
-    {
-        static constexpr float movementDamping = 0.05f;
+    //if (g_rightMouseButtonPressed)
+    //{
+    //    static constexpr float movementDamping = 0.05f;
 
-        g_cameraTransform.position.x += float(deltaMouseX) * movementDamping;
-        g_cameraTransform.position.y += float(deltaMouseY) * -movementDamping;
-    }
+    //    if (g_altPressed)
+    //    {
+    //        g_planeTransform.position.x += float(deltaMouseX) * movementDamping;
+    //        g_planeTransform.position.y += float(deltaMouseY) * -movementDamping;
+    //    }
+    //    else
+    //    {
+    //        g_cameraTransform.position.x += float(deltaMouseX) * movementDamping;
+    //        g_cameraTransform.position.y += float(deltaMouseY) * -movementDamping;
+    //    }
+    //}
 
-    if (g_altPressed)
+    //if (g_altPressed)
+    //{
+    //    g_planeTransform.position.z += float(deltaMouseZ);
+    //}
+    //else
     {
-        g_planeTransform.position.z += float(deltaMouseZ);
-    }
-    else
-    {
-        g_cameraTransform.position.z += float(deltaMouseZ);        
+        static constexpr float minCameraZ = -100.0f;
+        g_cameraTransform.position.z += g_cameraTransform.position.z + float(deltaMouseZ) > minCameraZ ? 0.0f : float(deltaMouseZ);
     }
 
     g_prevMouseX = g_currMouseX;
