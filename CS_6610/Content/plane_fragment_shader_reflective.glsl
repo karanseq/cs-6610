@@ -5,7 +5,7 @@
 //======
 
 // The interpolated uvs
-layout(location = 0) in vec4 i_position;
+layout(location = 0) in vec3 i_position;
 
 // Texture parameters
 layout(binding = 0) uniform sampler2D g_textureSampler;
@@ -29,16 +29,7 @@ out vec4 o_color;
 
 void main()
 {
-	// vec3 projectedCoords = i_position.xyz / i_position.w;
-	// // projectedCoords = projectedCoords * 0.5 + 0.5;
-
-	// float closestDepth = texture(g_textureSampler, projectedCoords.xyz).r;
-	// float currentDepth = i_position.z;
-	// float shadow = currentDepth > closestDepth ? 1.0 : 0.25;
-
-	// o_color = vec4(0.5, 0.5, 0.5, 1.0);// * (1.0 - shadow);
-
-	vec3 projectedCoords = i_position.xyz / i_position.w;
-	float closestDepth = texture(g_textureSampler, projectedCoords.xy).r * 0.5;
-	o_color = vec4(closestDepth, 0, 0, 1.0);
+	vec4 positionClipSpace = g_transform_projection * g_transform_viewReflected * g_transform_model * vec4(i_position, 1.0);
+	vec2 uv = vec2(positionClipSpace.x / positionClipSpace.w, positionClipSpace.y / positionClipSpace.w) * 0.5 + 0.5;
+	o_color = texture(g_textureSampler, uv);
 }

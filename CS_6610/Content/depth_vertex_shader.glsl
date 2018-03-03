@@ -9,12 +9,9 @@ layout(location = 0) in vec3 i_position;
 uniform mat4 g_transform_model;
 uniform mat4 g_transform_view;
 uniform mat4 g_transform_projection;
-uniform mat4 g_transform_light;
 
 // Output
 //=======
-
-layout(location = 0) out vec4 o_position;
 
 // Entry Point
 //============
@@ -22,5 +19,4 @@ layout(location = 0) out vec4 o_position;
 void main()
 {
 	gl_Position = g_transform_projection * g_transform_view * g_transform_model * vec4(i_position, 1.0);
-	o_position = g_transform_projection * g_transform_light * g_transform_model * vec4(i_position, 1.0);
 }
