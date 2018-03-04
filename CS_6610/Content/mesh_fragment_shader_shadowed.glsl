@@ -1,21 +1,15 @@
 // GLSL shaders require the version to be #defined before anything else in the shader
 #version 420
 
-// #define USE_BLINN
+#define USE_BLINN
 
 // Input
 //======
 
-// The interpolated vertex position in world space
+// The interpolated vertex position in camera space
 layout(location = 0) in vec3 i_vertex;
-// The interpolated normal in world space
+// The interpolated normal in camera space
 layout(location = 1) in vec3 i_normal;
-// The interpolated uvs
-layout(location = 2) in vec2 i_uv;
-
-// Texture parameters
-layout(binding = 0) uniform sampler2D g_diffuseTextureSampler;
-layout(binding = 1) uniform sampler2D g_specularTextureSampler;
 
 // The camera position in world space
 uniform vec3 g_cameraPosition;
@@ -29,14 +23,15 @@ uniform vec3 g_diffuse;
 uniform vec3 g_specular;
 uniform float g_shininess;
 
+// Color
+uniform vec3 g_color;
+
 // Output
 //=======
 
 // Whatever color value is output from the fragment shader
 // will determine the color of the corresponding pixel on the screen
 out vec4 o_color;
-
-layout(location = 0) out vec3 color;
 
 // Function Declarations
 //======================
@@ -51,8 +46,7 @@ vec3 getAmbient();
 
 void main()
 {
-	o_color = evaluateLights();
-	color = vec3(o_color);
+	o_color = vec4(g_color, 1.0) * evaluateLights();
 }
 
 vec4 evaluateLights()
@@ -70,7 +64,7 @@ vec4 evaluateLights()
 vec3 getDiffuse(in vec3 lightDirection, in vec3 normal)
 {
 	vec3 diffuse = clamp(dot(lightDirection, normal), 0.0, 1.0) * g_diffuse;
-	return diffuse * vec3(texture(g_diffuseTextureSampler, i_uv));
+	return diffuse;
 }
 
 vec3 getSpecular(in vec3 lightDirection, in vec3 normal)
@@ -89,10 +83,10 @@ vec3 getSpecular(in vec3 lightDirection, in vec3 normal)
 
 #endif
 
-	return specular * vec3(texture(g_specularTextureSampler, i_uv));
+	return specular;
 }
 
 vec3 getAmbient()
 {
-	return g_ambient * vec3(texture(g_diffuseTextureSampler, i_uv));
+	return g_ambient;
 }

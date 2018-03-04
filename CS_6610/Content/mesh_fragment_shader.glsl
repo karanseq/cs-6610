@@ -36,8 +36,6 @@ uniform float g_shininess;
 // will determine the color of the corresponding pixel on the screen
 out vec4 o_color;
 
-layout(location = 0) out vec3 color;
-
 // Function Declarations
 //======================
 
@@ -52,7 +50,6 @@ vec3 getAmbient();
 void main()
 {
 	o_color = evaluateLights();
-	color = vec3(o_color);
 }
 
 vec4 evaluateLights()
