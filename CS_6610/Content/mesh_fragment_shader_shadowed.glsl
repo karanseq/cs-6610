@@ -17,6 +17,8 @@ layout(location = 2) in vec4 i_vertexLightSpace;
 uniform vec3 g_cameraPosition;
 // The light position in world space
 uniform vec3 g_lightPosition;
+// The view matrix
+uniform mat4 g_transform_view;
 
 // Lighting parameters
 uniform vec3 g_ambientLightIntensity;
@@ -58,12 +60,13 @@ void main()
 
 vec4 evaluateLights(float i_evaluatedShadow)
 {
-	vec3 lightDirection = normalize(g_lightPosition - i_vertexViewSpace);
+	vec3 lightPosition = mat3(g_transform_view) * g_lightPosition;
+	vec3 lightDirection = normalize(lightPosition - i_vertexViewSpace);
 	vec3 normal = normalize(i_normal);
 
 	return vec4(
 		getDiffuse(lightDirection, normal) * (1.0 - i_evaluatedShadow) + 
-		getSpecular(lightDirection, normal) + 
+		getSpecular(lightDirection, normal) * (1.0 - i_evaluatedShadow) + 
 		getAmbient()
 		, 1.0);
 }
@@ -76,7 +79,7 @@ vec3 getDiffuse(in vec3 lightDirection, in vec3 normal)
 
 vec3 getSpecular(in vec3 lightDirection, in vec3 normal)
 {
-	vec3 viewDirection = normalize(i_vertexViewSpace - g_cameraPosition);
+	vec3 viewDirection = normalize(i_vertexViewSpace);
 
 #if defined USE_BLINN
 	vec3 halfAngle = normalize(lightDirection + viewDirection);
@@ -96,11 +99,13 @@ vec3 getAmbient()
 
 float evaluateShadows()
 {
+	vec3 lightDirection = normalize(g_lightPosition - i_vertexViewSpace);
 	vec3 projectedCoords = i_vertexLightSpace.xyz / i_vertexLightSpace.w;
 	projectedCoords = projectedCoords * 0.5 + 0.5;
 
+	float bias = 0.94;
 	float closestDepth = texture(g_textureSampler, projectedCoords.xyz);
-	float currentDepth = projectedCoords.z - 0.05;
+	float currentDepth = projectedCoords.z - bias;
 	float shadow = currentDepth > closestDepth ? 1.0 : 0.0;
 
 	return shadow;

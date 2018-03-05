@@ -442,12 +442,6 @@ void InitMeshes(const char* i_meshPath)
             i_meshPath,
             loadNormals,
             loadTexCoords);
-
-        // Initialize the mesh transform
-        //g_teapotTransform.orientation.Zero();
-        //g_teapotTransform.orientation.x = -90.0f;
-        //g_teapotTransform.position.Zero();
-        //g_teapotTransform.position.y -= (g_teapotMesh.GetBoundMax().z + g_teapotMesh.GetBoundMin().z) * 0.5f;
     }
 
     //================================================
@@ -496,8 +490,8 @@ void InitMeshes(const char* i_meshPath)
     // Render Texture Plane
 
     // Initialize the plane's transform
-    g_planeTransform.position.y = g_teapotTransform.position.y;
-    g_planeTransform.orientation.x = -90.0f;
+    g_planeTransform.position.Zero();
+    g_planeTransform.orientation.Zero();
 
     // Create a vertex array object and make it active
     {
@@ -518,10 +512,10 @@ void InitMeshes(const char* i_meshPath)
         constexpr uint8_t numVertices = 4;
         constexpr float halfSize = 50.0f;
         const cy::Point3f vertices[numVertices] = {
-            { -halfSize, -halfSize, 0.0f },     // bottom-left
-            { halfSize, -halfSize, 0.0f },      // bottom-right
-            { halfSize, halfSize, 0.0f },       // top-right
-            { -halfSize, halfSize, 0.0f }       // top-left
+            { -halfSize, 0.0f, halfSize },     // bottom-left
+            { halfSize, 0.0f, halfSize },      // bottom-right
+            { halfSize, 0.0f, -halfSize },       // top-right
+            { -halfSize, 0.0f, -halfSize }       // top-left
         };
 
         glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
@@ -546,10 +540,10 @@ void InitMeshes(const char* i_meshPath)
     {
         constexpr uint8_t numVertices = 4;
         const cy::Point3f normals[numVertices] = {
-            { 0.0f, 0.0f, 1.0f },
-            { 0.0f, 0.0f, 1.0f },
-            { 0.0f, 0.0f, 1.0f },
-            { 0.0f, 0.0f, 1.0f }
+            { 0.0f, 1.0f, 0.0f },
+            { 0.0f, 1.0f, 0.0f },
+            { 0.0f, 1.0f, 0.0f },
+            { 0.0f, 1.0f, 0.0f }
         };
 
         glBufferData(GL_ARRAY_BUFFER, sizeof(normals), normals, GL_STATIC_DRAW);
@@ -772,9 +766,11 @@ void InitTextures()
     // Intialize the render depth texture
     {
         constexpr bool isDepthComparisonTexture = true;
-        g_renderDepth.Initialize(isDepthComparisonTexture, WINDOW_WIDTH, WINDOW_HEIGHT);
+        g_renderDepth.Initialize(isDepthComparisonTexture, WINDOW_WIDTH * 4, WINDOW_HEIGHT * 4);
         g_renderDepth.SetTextureFilteringMode(GL_LINEAR, GL_LINEAR);
-        g_renderDepth.SetTextureWrappingMode(GL_MIRRORED_REPEAT, GL_MIRRORED_REPEAT);
+        g_renderDepth.SetTextureWrappingMode(GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE);
+        g_renderDepth.SetTextureMaxAnisotropy();
+        g_renderDepth.BuildTextureMipmaps();
     }
 
     //================================================
@@ -913,28 +909,31 @@ void InitLights()
     // Initialize the transform
     {
         g_lightTransform.orientation.Zero();
+        //g_lightTransform.orientation.x = -30.0f;
         g_lightTransform.position.Zero();
-        //g_lightTransform.position.y = 50.0f;
         g_lightTransform.position.z = 50.0f;
     }
 
     // Initialize the light's projection matrix
     {
+        static constexpr float fov = M_PI * 0.25f;
+        static constexpr float aspectRatio = 1.0f;
         static constexpr float left = -50.0f;
         static constexpr float right = 50.0f;
         static constexpr float bottom = -50.0f;
         static constexpr float top = 50.0f;
-        static constexpr float zNear = 1.0f;
-        static constexpr float zFar = 1000.0f;
+        static constexpr float zNear = 6.0f;
+        static constexpr float zFar = 400.0f;
 
-        GetOrthographicProjection(g_lightProjection, left, right, bottom, top, zNear, zFar);
+        //GetOrthographicProjection(g_lightProjection, left, right, bottom, top, zNear, zFar);
+        g_lightProjection = cy::Matrix4f::MatrixPerspective(fov, aspectRatio, zNear, zFar);
     }
 
     // Initialize the light variables based on whether this is a reflective scene
     if (REFLECTION_SCENE == false)
     {
-        g_ambient = cy::Point3f(0.1f, 0.1f, 0.1f);
-        g_diffuse = cy::Point3f(0.25f, 0.25f, 0.25f);
+        g_ambient = cy::Point3f(0.2f, 0.2f, 0.2f);
+        g_diffuse = cy::Point3f(0.35f, 0.35f, 0.35f);
     }
 }
 
@@ -1217,7 +1216,7 @@ void RenderMesh(SceneType i_sceneType,
         i_program.SetUniformMatrix4("g_transform_projection", i_projection.data);
 
         // Set the camera position
-        cy::Point4f cameraPosition = i_view * g_cameraTransform.position;
+        cy::Point3f cameraPosition = i_view.GetSubMatrix3() * g_cameraTransform.position;
         i_program.SetUniform("g_cameraPosition", cameraPosition.x, cameraPosition.y, cameraPosition.z);
 
         // Set the light transformation
@@ -1225,8 +1224,8 @@ void RenderMesh(SceneType i_sceneType,
         constexpr bool isFlipped = true;
         GetMatrixFromTransform(light, g_lightTransform, isFlipped);
 
-        cy::Point4f lightPosition = light * g_lightTransform.position;
-        light.SetView(cy::Point3f(lightPosition),
+        cy::Point3f lightPosition(light * g_lightTransform.position);
+        light.SetView(lightPosition,
             cy::Point3f(0.0f, 0.0f, 0.0f),
             cy::Point3f(0.0f, 1.0f, 0.0f));
 
@@ -1314,35 +1313,35 @@ void Update(float DeltaSeconds)
     {
         static constexpr float movementDamping = 0.05f;
 
-        // Light
-        if (g_controlPressed)
-        {
-            //g_lightTransform.position.x += float(deltaMouseX) * movementDamping;
-            g_lightTransform.position.y += float(deltaMouseY) * -movementDamping;
-        }
-        // Plane
-        else if (g_altPressed)
-        {
-            g_planeTransform.position.x += float(deltaMouseX) * movementDamping;
-            g_planeTransform.position.y += float(deltaMouseY) * -movementDamping;
-        }
-        // Camera
-        else
+        //// Light
+        //if (g_controlPressed)
+        //{
+        //    g_lightTransform.position.x += float(deltaMouseX) * movementDamping;
+        //    g_lightTransform.position.y += float(deltaMouseY) * -movementDamping;
+        //}
+        //// Plane
+        //else if (g_altPressed)
+        //{
+        //    g_planeTransform.position.x += float(deltaMouseX) * movementDamping;
+        //    g_planeTransform.position.y += float(deltaMouseY) * -movementDamping;
+        //}
+        //// Camera
+        //else
         {
             g_cameraTransform.position.x += float(deltaMouseX) * movementDamping;
             g_cameraTransform.position.y += float(deltaMouseY) * -movementDamping;
         }
     }
 
-    if (g_controlPressed)
-    {
-        g_lightTransform.position.z += mouseZ;
-    }
-    else if (g_altPressed)
-    {
-        g_planeTransform.position.z += mouseZ;
-    }
-    else
+    //if (g_controlPressed)
+    //{
+    //    g_lightTransform.position.z += mouseZ;
+    //}
+    //else if (g_altPressed)
+    //{
+    //    g_planeTransform.position.z += mouseZ;
+    //}
+    //else
     {
         g_cameraTransform.position.z += mouseZ;
     }
