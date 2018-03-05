@@ -56,7 +56,7 @@ vec4 evaluateLights()
 
 	return vec4(
 		getDiffuse(lightDirection, normal) + 
-		getSpecular(lightDirection, normal) + 
+		// getSpecular(lightDirection, normal) + 
 		getAmbient()
 		, 1.0);
 }
