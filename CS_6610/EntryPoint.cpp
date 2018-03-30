@@ -30,28 +30,10 @@
 // Constants
 constexpr char* WINDOW_TITLE = "Karan's CS_6610 Playground";
 constexpr char* CONTENT_PATH = "..\\CS_6610\\Content\\";
-constexpr char* SKYBOX_OBJ_PATH = "..\\CS_6610\\Content\\cube.obj";
-constexpr char* SPHERE_OBJ_PATH = "..\\CS_6610\\Content\\sphere.obj";
-constexpr char* LIGHT_OBJ_PATH = "..\\CS_6610\\Content\\light.obj";
 
-constexpr char* MESH_VERTEX_SHADER_PATH = "..\\CS_6610\\Content\\mesh_vertex_shader.glsl";
-constexpr char* MESH_FRAGMENT_SHADER_PATH = "..\\CS_6610\\Content\\mesh_fragment_shader.glsl";
 constexpr char* PLANE_VERTEX_SHADER_PATH = "..\\CS_6610\\Content\\plane_vertex_shader.glsl";
 constexpr char* PLANE_FRAGMENT_SHADER_PATH = "..\\CS_6610\\Content\\plane_fragment_shader.glsl";
-constexpr char* SKYBOX_VERTEX_SHADER_PATH = "..\\CS_6610\\Content\\skybox_vertex_shader.glsl";
-constexpr char* SKYBOX_FRAGMENT_SHADER_PATH = "..\\CS_6610\\Content\\skybox_fragment_shader.glsl";
-constexpr char* MESH_REFLECTIVE_VERTEX_SHADER_PATH = "..\\CS_6610\\Content\\mesh_vertex_shader_reflective.glsl";
-constexpr char* MESH_REFLECTIVE_FRAGMENT_SHADER_PATH = "..\\CS_6610\\Content\\mesh_fragment_shader_reflective.glsl";
-constexpr char* PLANE_REFLECTIVE_VERTEX_SHADER_PATH = "..\\CS_6610\\Content\\plane_vertex_shader_reflective.glsl";
-constexpr char* PLANE_REFLECTIVE_FRAGMENT_SHADER_PATH = "..\\CS_6610\\Content\\plane_fragment_shader_reflective.glsl";
-constexpr char* DEPTH_VERTEX_SHADER_PATH = "..\\CS_6610\\Content\\depth_vertex_shader.glsl";
-constexpr char* DEPTH_FRAGMENT_SHADER_PATH = "..\\CS_6610\\Content\\depth_fragment_shader.glsl";
-constexpr char* MESH_SHADOWED_VERTEX_SHADER_PATH = "..\\CS_6610\\Content\\mesh_vertex_shader_shadowed.glsl";
-constexpr char* MESH_SHADOWED_FRAGMENT_SHADER_PATH = "..\\CS_6610\\Content\\mesh_fragment_shader_shadowed.glsl";
-constexpr char* PLANE_SHADOWED_VERTEX_SHADER_PATH = "..\\CS_6610\\Content\\plane_vertex_shader_shadowed.glsl";
-constexpr char* PLANE_SHADOWED_FRAGMENT_SHADER_PATH = "..\\CS_6610\\Content\\plane_fragment_shader_shadowed.glsl";
 
-constexpr bool REFLECTION_SCENE = false;
 constexpr uint8_t CONTENT_PATH_LENGTH = 22;
 constexpr uint16_t MAX_PATH_LENGTH = 1024;
 constexpr uint16_t WINDOW_WIDTH = 1024;
@@ -114,55 +96,19 @@ int g_prevMouseZ = 0;
 //~====================================================================================================
 // Data
 
-// Meshes
-cy::TriMesh g_teapotMesh;
-cy::TriMesh g_skyboxMesh;
-cy::TriMesh g_sphereMesh;
-cy::TriMesh g_lightMesh;
-
 // Transforms
 Transform g_cameraTransform;
-Transform g_teapotTransform;
 Transform g_planeTransform;
-Transform g_sphereTransform;
-Transform g_lightTransform;
 
 // Matrices
 cy::Matrix4f g_perspectiveProjection;
-cy::Matrix4f g_lightProjection;
-
-// Light
-cy::Point3f g_ambientLightIntensity(0.2f, 0.2f, 0.2f);
-cy::Point3f g_ambient(0.0f, 0.0f, 0.0f);
-cy::Point3f g_diffuse(0.0f, 0.0f, 0.0f);
-cy::Point3f g_specular(0.75f, 0.75f, 0.75f);
-float g_shininess = 100.0f;
-
-// Render Texture
-cy::GLRenderTexture2D g_renderTexture;
-cy::GLRenderDepth2D g_renderDepth;
 
 // Shader
-cy::GLSLProgram g_meshGLProgram;
-cy::GLSLProgram g_skyboxGLProgram;
-cy::GLSLProgram g_reflectiveMeshGLProgram;
 cy::GLSLProgram g_planeGLProgram;
-cy::GLSLProgram g_reflectivePlaneGLProgram;
-cy::GLSLProgram g_depthGLProgram;
-cy::GLSLProgram g_shadowedMeshGLProgram;
-cy::GLSLProgram g_shadowedPlaneGLProgram;
 
 // Buffer IDs
 // Teapot
-BufferIdGroup g_teapotBufferIds;
-BufferIdGroup g_skyboxBufferIds;
-BufferIdGroup g_sphereBufferIds;
 BufferIdGroup g_planeBufferIds;
-BufferIdGroup g_lightBufferIds;
-
-GLuint g_skyboxTextureId = 0;
-GLuint g_teapotDiffuseTextureId = 0;
-GLuint g_teapotSpecularTextureId = 0;
 
 // Misc
 std::stringstream g_messageStream;
@@ -186,35 +132,11 @@ void BuildShaders();
 bool BuildShader(cy::GLSLProgram& o_program,
     const char* i_vertexShaderPath,
     const char* i_fragmentShaderPath);
-void InitMeshes(const char* i_meshPath);
-void InitMeshFromObj(cy::TriMesh& o_mesh,
-    BufferIdGroup& o_bufferIds,
-    const char* i_objPath,
-    bool i_loadNormals = false,
-    bool i_loadTexCoords = false);
-void InitTextures();
-void InitSkyboxTexture(GLenum i_side, const char* i_texturePath);
-void InitTeapotTexture(GLuint &o_textureId, const char* i_texturePath);
+void InitMeshes();
 void InitCamera();
-void InitLights();
 
 // Render functions
-void RenderReflectionScene();
-void RenderShadowScene();
-void RenderSkybox(const cy::Matrix4f& i_viewNoTranslation);
-void RenderTexturePlane(SceneType i_sceneType, 
-    cy::GLSLProgram& i_program, 
-    const cy::Matrix4f& i_view,
-    const cy::Matrix4f& i_projection,
-    const cy::Point3f& i_color = WHITE);
-void RenderMesh(SceneType i_sceneType,
-    cy::GLSLProgram& i_program,
-    const cy::Matrix4f& i_model,
-    const cy::Matrix4f& i_view,
-    const cy::Matrix4f& i_projection,
-    const BufferIdGroup& i_bufferIds,
-    const cy::TriMesh& i_mesh,
-    const cy::Point3f& i_color = WHITE);
+void Render();
 
 // Update functions
 void Update(float DeltaSeconds);
@@ -235,12 +157,6 @@ void GetOrthographicProjection(cy::Matrix4f& o_matrix,
 
 int main(int argcp, char** argv)
 {
-    if (argcp < 2)
-    {
-        LOG_ERROR("Insufficient arguments passed to executable!");
-        return 0;
-    }
-
     // initialize GLUT
     {
         glutInit(&argcp, argv);
@@ -287,15 +203,9 @@ int main(int argcp, char** argv)
     {
         BuildShaders();
         {
-            char meshPath[MAX_PATH_LENGTH];
-            //strncpy_s(meshPath, argv[1], strlen(argv[1]));
-            sprintf_s(meshPath, "%s", argv[1]);
-
-            InitMeshes(meshPath);
+            InitMeshes();
         }
-        InitTextures();
         InitCamera();
-        InitLights();
     }
 
     LAST_DRAW_TIME_POINT = std::chrono::steady_clock::now();
@@ -312,15 +222,7 @@ int main(int argcp, char** argv)
 
 void DisplayFunc()
 {
-    if (REFLECTION_SCENE)
-    {
-        RenderReflectionScene();
-    }
-    else
-    {
-        RenderShadowScene();
-    }
-
+    Render();
     glutSwapBuffers();
 }
 
@@ -397,14 +299,7 @@ void MouseWheelFunc(int button, int dir, int x, int y)
 
 void BuildShaders()
 {
-    BuildShader(g_meshGLProgram, MESH_VERTEX_SHADER_PATH, MESH_FRAGMENT_SHADER_PATH);
     BuildShader(g_planeGLProgram, PLANE_VERTEX_SHADER_PATH, PLANE_FRAGMENT_SHADER_PATH);
-    BuildShader(g_skyboxGLProgram, SKYBOX_VERTEX_SHADER_PATH, SKYBOX_FRAGMENT_SHADER_PATH);
-    BuildShader(g_reflectiveMeshGLProgram, MESH_REFLECTIVE_VERTEX_SHADER_PATH, MESH_REFLECTIVE_FRAGMENT_SHADER_PATH);
-    BuildShader(g_reflectivePlaneGLProgram, PLANE_REFLECTIVE_VERTEX_SHADER_PATH, PLANE_REFLECTIVE_FRAGMENT_SHADER_PATH);
-    BuildShader(g_depthGLProgram, DEPTH_VERTEX_SHADER_PATH, DEPTH_FRAGMENT_SHADER_PATH);
-    BuildShader(g_shadowedMeshGLProgram, MESH_SHADOWED_VERTEX_SHADER_PATH, MESH_SHADOWED_FRAGMENT_SHADER_PATH);
-    BuildShader(g_shadowedPlaneGLProgram, PLANE_SHADOWED_VERTEX_SHADER_PATH, PLANE_SHADOWED_FRAGMENT_SHADER_PATH);
 }
 
 bool BuildShader(cy::GLSLProgram& o_program, 
@@ -430,62 +325,8 @@ bool BuildShader(cy::GLSLProgram& o_program,
     return true;
 }
 
-void InitMeshes(const char* i_meshPath)
+void InitMeshes()
 {
-    //================================================
-    // Teapot
-    {
-        constexpr bool loadNormals = true;
-        constexpr bool loadTexCoords = false;
-        InitMeshFromObj(g_teapotMesh,
-            g_teapotBufferIds,
-            i_meshPath,
-            loadNormals,
-            loadTexCoords);
-    }
-
-    //================================================
-    // Light
-    {
-        constexpr bool loadNormals = true;
-        constexpr bool loadTexCoords = true;
-        InitMeshFromObj(g_lightMesh,
-            g_lightBufferIds,
-            LIGHT_OBJ_PATH,
-            loadNormals,
-            loadTexCoords);
-
-        // Initialize the mesh transform
-        //g_teapotTransform.orientation.Zero();
-        //g_teapotTransform.orientation.x = -90.0f;
-        //g_teapotTransform.position.Zero();
-        //g_teapotTransform.position.y -= (g_teapotMesh.GetBoundMax().z + g_teapotMesh.GetBoundMin().z) * 0.5f;
-    }
-
-    //================================================
-    // Sphere
-    {
-        constexpr bool loadNormals = true;
-        constexpr bool loadTexCoords = true;
-        InitMeshFromObj(g_sphereMesh,
-            g_sphereBufferIds,
-            SPHERE_OBJ_PATH,
-            loadNormals,
-            loadTexCoords);
-
-        g_sphereTransform.orientation.Zero();
-        g_sphereTransform.position.Zero();
-    }
-
-    //================================================
-    // Skybox
-    {
-        InitMeshFromObj(g_skyboxMesh,
-            g_skyboxBufferIds,
-            SKYBOX_OBJ_PATH
-        );
-    }
-
     //================================================
     // Render Texture Plane
 
@@ -529,62 +370,6 @@ void InitMeshes(const char* i_meshPath)
         glEnableVertexAttribArray(vertexElementLocation);
     }
 
-    // Create a vertex normal buffer object and make it active
-    {
-        constexpr GLsizei bufferCount = 1;
-        glGenBuffers(bufferCount, &g_planeBufferIds.normalBufferId);
-        glBindBuffer(GL_ARRAY_BUFFER, g_planeBufferIds.normalBufferId);
-    }
-
-    // Assign data to the vertex normal buffer
-    {
-        constexpr uint8_t numVertices = 4;
-        const cy::Point3f normals[numVertices] = {
-            { 0.0f, 1.0f, 0.0f },
-            { 0.0f, 1.0f, 0.0f },
-            { 0.0f, 1.0f, 0.0f },
-            { 0.0f, 1.0f, 0.0f }
-        };
-
-        glBufferData(GL_ARRAY_BUFFER, sizeof(normals), normals, GL_STATIC_DRAW);
-    }
-
-    // Initialize vertex normal attribute
-    {
-        constexpr GLuint vertexElementLocation = 1;
-        constexpr GLuint elementCount = 3;
-        glVertexAttribPointer(vertexElementLocation, elementCount, GL_FLOAT, GL_FALSE, 0, 0);
-        glEnableVertexAttribArray(vertexElementLocation);
-    }
-
-    // Create a texture coordinate buffer object and make it active
-    {
-        constexpr GLsizei bufferCount = 1;
-        glGenBuffers(bufferCount, &g_planeBufferIds.texCoordId);
-        glBindBuffer(GL_ARRAY_BUFFER, g_planeBufferIds.texCoordId);
-    }
-
-    // Assign data to the texture coordinate buffer
-    {
-        constexpr uint8_t numUVs = 4;
-        const cy::Point2f uvs[numUVs] = {
-            { 0.0f, 0.0f },     // bottom-left
-            { 1.0f, 0.0f },     // bottom-right
-            { 1.0f, 1.0f },     // top-right
-            { 0.0f, 1.0f }      // top-left
-        };
-
-        glBufferData(GL_ARRAY_BUFFER, sizeof(uvs), uvs, GL_STATIC_DRAW);
-    }
-
-    // Initialize the texture coordinate attribute
-    {
-        constexpr GLuint vertexElementLocation = 2;
-        constexpr GLuint elementCount = 2;
-        glVertexAttribPointer(vertexElementLocation, elementCount, GL_FLOAT, GL_FALSE, 0, 0);
-        glEnableVertexAttribArray(vertexElementLocation);
-    }
-
     // Create an index buffer object and make it active
     {
         constexpr GLsizei bufferCount = 1;
@@ -597,288 +382,6 @@ void InitMeshes(const char* i_meshPath)
         constexpr uint8_t numIndices = 6;
         constexpr uint8_t indices[numIndices] = { 0, 1, 2, 0, 2, 3 };
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-    }
-}
-
-void InitMeshFromObj(cy::TriMesh& o_mesh,
-    BufferIdGroup& o_bufferIds,
-    const char* i_objPath,
-    bool i_loadNormals/* = false*/,
-    bool i_loadTexCoords/* = false*/)
-{
-    // Load the mesh from disk
-    if (o_mesh.LoadFromFileObj(i_objPath) == false)
-    {
-        LOG_ERROR("Couldn't load mesh file:%s", i_objPath);
-        return;
-    }
-
-    // Check if normals need to be computed
-    if (i_loadNormals)
-    {
-        o_mesh.ComputeNormals();
-    }
-
-    // Compute additional geometry
-    if (o_mesh.IsBoundBoxReady() == false)
-    {
-        o_mesh.ComputeBoundingBox();
-    }
-
-    // Create a vertex array object and make it active
-    {
-        constexpr GLsizei arrayCount = 1;
-        glGenVertexArrays(arrayCount, &o_bufferIds.vertexArrayId);
-        glBindVertexArray(o_bufferIds.vertexArrayId);
-    }
-
-    // Create a vertex buffer object and make it active
-    {
-        constexpr GLsizei bufferCount = 1;
-        glGenBuffers(bufferCount, &o_bufferIds.vertexBufferId);
-        glBindBuffer(GL_ARRAY_BUFFER, o_bufferIds.vertexBufferId);
-    }
-
-    // Assign data to the vertex buffer
-    {
-        const size_t bufferSize = sizeof(cy::Point3f) * o_mesh.NF() * 3;
-        cy::Point3f* vertices = (cy::Point3f*) malloc(bufferSize);
-
-        for (unsigned int i = 0; i < o_mesh.NF(); ++i)
-        {
-            const cy::TriMesh::TriFace& triFace = o_mesh.F(i);
-            vertices[i * 3] = o_mesh.V(triFace.v[0]);
-            vertices[i * 3 + 1] = o_mesh.V(triFace.v[1]);
-            vertices[i * 3 + 2] = o_mesh.V(triFace.v[2]);
-        }
-
-        glBufferData(GL_ARRAY_BUFFER, bufferSize, vertices, GL_STATIC_DRAW);
-        free(vertices);
-    }
-
-    // Initialize vertex position attribute
-    {
-        constexpr GLuint vertexElementLocation = 0;
-        constexpr GLuint elementCount = 3;
-        glVertexAttribPointer(vertexElementLocation, elementCount, GL_FLOAT, GL_FALSE, 0, 0);
-        glEnableVertexAttribArray(vertexElementLocation);
-    }
-
-    if (i_loadNormals)
-    {
-        // Create a normal buffer object and make it active
-        {
-            constexpr GLsizei bufferCount = 1;
-            glGenBuffers(bufferCount, &o_bufferIds.normalBufferId);
-            glBindBuffer(GL_ARRAY_BUFFER, o_bufferIds.normalBufferId);
-        }
-
-        // Assign data to the normal buffer
-        {
-            const size_t bufferSize = sizeof(cy::Point3f) * o_mesh.NF() * 3;
-            cy::Point3f* normals = (cy::Point3f*) malloc(bufferSize);
-
-            for (unsigned int i = 0; i < o_mesh.NF(); ++i)
-            {
-                const cy::TriMesh::TriFace& triFace = o_mesh.FN(i);
-                normals[i * 3] = o_mesh.VN(triFace.v[0]);
-                normals[i * 3 + 1] = o_mesh.VN(triFace.v[1]);
-                normals[i * 3 + 2] = o_mesh.VN(triFace.v[2]);
-            }
-
-            glBufferData(GL_ARRAY_BUFFER, bufferSize, normals, GL_STATIC_DRAW);
-            free(normals);
-        }
-
-        // Initialize vertex normal attribute
-        {
-            constexpr GLuint vertexElementLocation = 1;
-            constexpr GLuint elementCount = 3;
-            glVertexAttribPointer(vertexElementLocation, elementCount, GL_FLOAT, GL_FALSE, 0, 0);
-            glEnableVertexAttribArray(vertexElementLocation);
-        }
-    }
-
-    if (i_loadTexCoords)
-    {
-        // Create a texture coordinate buffer object and make it active
-        {
-            constexpr GLsizei bufferCount = 1;
-            glGenBuffers(bufferCount, &o_bufferIds.texCoordId);
-            glBindBuffer(GL_ARRAY_BUFFER, o_bufferIds.texCoordId);
-        }
-
-        // Assign data to the texture coordinate buffer
-        {
-            const size_t bufferSize = sizeof(cy::Point2f) * o_mesh.NF() * 3;
-            cy::Point2f* uvs = (cy::Point2f*) malloc(bufferSize);
-
-            for (unsigned int i = 0; i < o_mesh.NF(); ++i)
-            {
-                const cy::TriMesh::TriFace& triFace = o_mesh.FT(i);
-                uvs[i * 3] = cy::Point2f(o_mesh.VT(triFace.v[0]));
-                uvs[i * 3 + 1] = cy::Point2f(o_mesh.VT(triFace.v[1]));
-                uvs[i * 3 + 2] = cy::Point2f(o_mesh.VT(triFace.v[2]));
-            }
-
-            glBufferData(GL_ARRAY_BUFFER, bufferSize, uvs, GL_STATIC_DRAW);
-            free(uvs);
-        }
-
-        // Initialize the texture coordinate attribute
-        {
-            constexpr GLuint vertexElementLocation = 2;
-            constexpr GLuint elementCount = 2;
-            glVertexAttribPointer(vertexElementLocation, elementCount, GL_FLOAT, GL_FALSE, 0, 0);
-            glEnableVertexAttribArray(vertexElementLocation);
-        }
-    }
-
-    // Create an index buffer object and make it active
-    {
-        constexpr GLsizei bufferCount = 1;
-        glGenBuffers(bufferCount, &o_bufferIds.indexBufferId);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, o_bufferIds.indexBufferId);
-    }
-
-    // Assign data to the index buffer
-    {
-        const size_t bufferSize = sizeof(cy::TriMesh::TriFace) * o_mesh.NF();
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, bufferSize, &o_mesh.F(0), GL_STATIC_DRAW);
-    }
-}
-
-void InitTextures()
-{
-    //================================================
-    // Render Texture
-
-    // Initialize the render texture
-    {
-        constexpr bool useDepthBuffer = true;
-        constexpr uint8_t numChannels = 3;
-        g_renderTexture.Initialize(useDepthBuffer, numChannels, WINDOW_WIDTH, WINDOW_HEIGHT);
-        g_renderTexture.SetTextureFilteringMode(GL_LINEAR, 0);
-        g_renderTexture.SetTextureMaxAnisotropy();
-        g_renderTexture.BuildTextureMipmaps();
-    }
-
-    // Intialize the render depth texture
-    {
-        constexpr bool isDepthComparisonTexture = true;
-        g_renderDepth.Initialize(isDepthComparisonTexture, WINDOW_WIDTH * 4, WINDOW_HEIGHT * 4);
-        g_renderDepth.SetTextureFilteringMode(GL_LINEAR, GL_LINEAR);
-        g_renderDepth.SetTextureWrappingMode(GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE);
-        g_renderDepth.SetTextureMaxAnisotropy();
-        g_renderDepth.BuildTextureMipmaps();
-    }
-
-    //================================================
-    // Skybox
-
-    if (REFLECTION_SCENE)
-    {
-        // Get a texture id
-        glGenTextures(1, &g_skyboxTextureId);        
-
-        InitSkyboxTexture(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, "negz.png");
-        InitSkyboxTexture(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, "posz.png");
-        InitSkyboxTexture(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, "posy.png");
-        InitSkyboxTexture(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, "negy.png");
-        InitSkyboxTexture(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, "negx.png");
-        InitSkyboxTexture(GL_TEXTURE_CUBE_MAP_POSITIVE_X, "posx.png");
-
-        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    }
-
-    //================================================
-    // Teapot
-
-    // Check if the mesh has materials
-    const int numMaterials = g_teapotMesh.NM();
-    if (numMaterials <= 0)
-    {
-        return;
-    }
-
-    // Extract the first material from the mesh
-    constexpr uint8_t firstMaterialIndex = 0;
-    const cy::TriMesh::Mtl& material = g_teapotMesh.M(firstMaterialIndex);
-
-    // Set lighting parameters
-    g_ambient.Set(material.Ka[0], material.Ka[1], material.Ka[2]);
-    g_diffuse.Set(material.Kd[0], material.Kd[1], material.Kd[2]);
-    g_specular.Set(material.Ks[0], material.Ks[1], material.Ks[2]);
-    g_shininess = material.Ns;
-
-    // Load diffuse & specular textures
-    {
-        constexpr bool generateMipMap = true;
-        InitTeapotTexture(g_teapotDiffuseTextureId, material.map_Kd.data);
-        InitTeapotTexture(g_teapotSpecularTextureId, material.map_Ks.data);
-    }
-}
-
-void InitSkyboxTexture(GLenum i_side, const char* i_texturePath)
-{
-    // Texture loading parameters
-    unsigned char* textureData = nullptr;
-    unsigned int width = 0, height = 0;
-
-    // Load texture
-    char fullTexturePath[MAX_PATH_LENGTH];
-    sprintf_s(fullTexturePath, "%s%s", CONTENT_PATH, i_texturePath);
-    if (unsigned int error = lodepng_decode24_file(&textureData, &width, &height, fullTexturePath))
-    {
-        LOG_ERROR("Error while loading texture %s:%s", fullTexturePath, lodepng_error_text(error));
-    }
-    else
-    {
-        // Bind the texture
-        glBindTexture(GL_TEXTURE_CUBE_MAP, g_skyboxTextureId);
-        // Set the texture data
-        glTexImage2D(i_side, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, textureData);
-        // Free the texture
-        free(textureData);
-    }
-}
-
-void InitTeapotTexture(GLuint &o_textureId, const char* i_texturePath)
-{
-    // Texture loading parameters
-    unsigned char* textureData = nullptr;
-    unsigned int width = 0, height = 0;
-
-    // Load texture
-    char fullTexturePath[MAX_PATH_LENGTH];
-    sprintf_s(fullTexturePath, "%s%s", CONTENT_PATH, i_texturePath);
-    if (unsigned int error = lodepng_decode24_file(&textureData, &width, &height, fullTexturePath))
-    {
-        LOG_ERROR("Error while loading texture %s:%s", fullTexturePath, lodepng_error_text(error));
-    }
-    else
-    {
-        // Get a texture id
-        glGenTextures(1, &o_textureId);
-        // Bind the texture
-        glBindTexture(GL_TEXTURE_2D, o_textureId);
-        // Set the texture data
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, textureData);
-
-        // Set filtering parameters
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-
-        glGenerateMipmap(GL_TEXTURE_2D);
-
-        // Free the texture
-        free(textureData);
     }
 }
 
@@ -904,368 +407,39 @@ void InitCamera()
     }
 }
 
-void InitLights()
-{
-    // Initialize the transform
-    {
-        g_lightTransform.orientation.Zero();
-        //g_lightTransform.orientation.x = -30.0f;
-        g_lightTransform.position.Zero();
-        g_lightTransform.position.z = 50.0f;
-    }
-
-    // Initialize the light's projection matrix
-    {
-        static constexpr float fov = M_PI * 0.25f;
-        static constexpr float aspectRatio = 1.0f;
-        static constexpr float left = -50.0f;
-        static constexpr float right = 50.0f;
-        static constexpr float bottom = -50.0f;
-        static constexpr float top = 50.0f;
-        static constexpr float zNear = 6.0f;
-        static constexpr float zFar = 400.0f;
-
-        //GetOrthographicProjection(g_lightProjection, left, right, bottom, top, zNear, zFar);
-        g_lightProjection = cy::Matrix4f::MatrixPerspective(fov, aspectRatio, zNear, zFar);
-    }
-
-    // Initialize the light variables based on whether this is a reflective scene
-    if (REFLECTION_SCENE == false)
-    {
-        g_ambient = cy::Point3f(0.2f, 0.2f, 0.2f);
-        g_diffuse = cy::Point3f(0.35f, 0.35f, 0.35f);
-    }
-}
-
 //~====================================================================================================
 // Render functions
 
-void RenderReflectionScene()
+void Render()
 {
-    // Render the skybox & mesh to texture
-    g_renderTexture.Bind();
-    {
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-
-        // Get the reflected camera transform
-        Transform cameraTransform_reflected = g_cameraTransform;
-        cameraTransform_reflected.orientation.x *= -1.0f;
-
-        // Render the skybox
-        {
-            cy::Matrix4f view;
-
-            Transform cameraTransform_reflected_noTranslation = cameraTransform_reflected;
-            cameraTransform_reflected_noTranslation.position.Zero();
-            GetMatrixFromTransform(view, cameraTransform_reflected_noTranslation);
-
-            RenderSkybox(view);
-        }
-
-        // Render the teapot
-        {
-            cy::Matrix4f model;
-            GetMatrixFromTransform(model, g_teapotTransform);
-
-            cy::Matrix4f view;
-            GetMatrixFromTransform(view, cameraTransform_reflected);
-
-            RenderMesh(SceneType::EReflectiveScene, 
-                g_reflectiveMeshGLProgram,
-                model,
-                view,
-                g_perspectiveProjection,
-                g_teapotBufferIds,
-                g_teapotMesh);
-        }
-    }
-    g_renderTexture.Unbind();
-
-    // Render the scene
+    // Clear
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glClearColor(0.15f, 0.15f, 0.15f, 1.0f);
+    glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
 
-    // Render the skybox
-    {
-        cy::Matrix4f view;
+    // Bind the shaders
+    g_planeGLProgram.Bind();
 
-        Transform cameraTransform_noTranslation = g_cameraTransform;
-        cameraTransform_noTranslation.position.Zero();
-        GetMatrixFromTransform(view, cameraTransform_noTranslation);
+    // Set the model transformation
+    cy::Matrix4f model;
+    GetMatrixFromTransform(model, g_planeTransform);
+    g_planeGLProgram.SetUniformMatrix4("g_transform_model", model.data);
 
-        RenderSkybox(view);
-    }
-
+    // Set the view transformation
     cy::Matrix4f view;
     GetMatrixFromTransform(view, g_cameraTransform);
+    g_planeGLProgram.SetUniformMatrix4("g_transform_view", view.data);
 
-    // Render the teapot
-    {
-        cy::Matrix4f model;
-        GetMatrixFromTransform(model, g_teapotTransform);
+    // Set the projection matrix
+    g_planeGLProgram.SetUniformMatrix4("g_transform_projection", g_perspectiveProjection.data);
 
-        RenderMesh(SceneType::EReflectiveScene,
-            g_reflectiveMeshGLProgram,
-            model,
-            view,
-            g_perspectiveProjection,
-            g_teapotBufferIds,
-            g_teapotMesh);
-    }
-
-    // Render the render texture onto the plane
-    {
-        glActiveTexture(GL_TEXTURE0);
-        g_renderTexture.BindTexture();
-
-        RenderTexturePlane(SceneType::EReflectiveScene,
-            g_reflectivePlaneGLProgram,
-            view,
-            g_perspectiveProjection);
-    }
-}
-
-void RenderShadowScene()
-{
-    // Render the teapot and the plane to the render depth texture
-    g_renderDepth.Bind();
-    {
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-
-        cy::Matrix4f model;
-        GetMatrixFromTransform(model, g_teapotTransform);
-
-        // Get the light's transform
-        cy::Matrix4f light;
-        constexpr bool isFlipped = true;
-        GetMatrixFromTransform(light, g_lightTransform, isFlipped);
-
-        cy::Point4f lightPosition = light * g_lightTransform.position;
-        light.SetView(cy::Point3f(lightPosition),
-            cy::Point3f(0.0f, 0.0f, 0.0f),
-            cy::Point3f(0.0f, 1.0f, 0.0f));
-
-        RenderMesh(SceneType::ERegularScene,
-            g_depthGLProgram,
-            model,
-            light,
-            g_lightProjection,
-            g_teapotBufferIds,
-            g_teapotMesh);
-    }
-    g_renderDepth.Unbind();
-
-    // Render the scene
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-
-    {
-        // Bind the shadow map
-        glActiveTexture(GL_TEXTURE0);
-        g_renderDepth.BindTexture();
-
-        cy::Matrix4f view;
-        GetMatrixFromTransform(view, g_cameraTransform);
-
-        // Render the teapot
-        cy::Matrix4f model;
-        GetMatrixFromTransform(model, g_teapotTransform);
-
-        RenderMesh(SceneType::EShadowedScene,
-            g_shadowedMeshGLProgram,
-            model,
-            view,
-            g_perspectiveProjection,
-            g_teapotBufferIds,
-            g_teapotMesh,
-            YELLOW);
-
-        // Render the light
-        constexpr bool isFlipped = true;
-        GetMatrixFromTransform(model, g_lightTransform, isFlipped);
-
-        RenderMesh(SceneType::EShadowedScene,
-            g_shadowedMeshGLProgram,
-            model,
-            view,
-            g_perspectiveProjection,
-            g_lightBufferIds,
-            g_lightMesh);
-
-        RenderTexturePlane(SceneType::EShadowedScene,
-            g_shadowedPlaneGLProgram,
-            view,
-            g_perspectiveProjection,
-            GREY);
-    }
-}
-
-void RenderSkybox(const cy::Matrix4f& i_viewNoTranslation)
-{
-    glDepthMask(GL_FALSE);
-
-    g_skyboxGLProgram.Bind();
-    {
-        // Set the view transformation
-        g_skyboxGLProgram.SetUniformMatrix4("g_transform_view", i_viewNoTranslation.data);
-
-        // Set the projection transformation
-        g_skyboxGLProgram.SetUniformMatrix4("g_transform_projection", g_perspectiveProjection.data);
-    }
-
-    // Attach and bind textures
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, g_skyboxTextureId);
-
-    // Draw the mesh
-    {
-        glBindVertexArray(g_skyboxBufferIds.vertexArrayId);
-        glDrawArrays(GL_TRIANGLES, 0, g_skyboxMesh.NF() * 3);
-    }
-
-    glDepthMask(GL_TRUE);
-}
-
-void RenderTexturePlane(SceneType i_sceneType,
-    cy::GLSLProgram& i_program,
-    const cy::Matrix4f& i_view,
-    const cy::Matrix4f& i_projection,
-    const cy::Point3f& i_color/* = WHITE*/)
-{
-    i_program.Bind();
-    {
-        // Set the model transformation
-        cy::Matrix4f model;
-        GetMatrixFromTransform(model, g_planeTransform);
-        i_program.SetUniformMatrix4("g_transform_model", model.data);
-
-        // Set the view transformation
-        i_program.SetUniformMatrix4("g_transform_view", i_view.data);
-
-        // Set the projection transformation
-        i_program.SetUniformMatrix4("g_transform_projection", i_projection.data);
-
-        // Set the light transformation
-        cy::Matrix4f light;
-        constexpr bool isFlipped = true;
-        GetMatrixFromTransform(light, g_lightTransform, isFlipped);
-
-        cy::Point4f lightPosition = light * g_lightTransform.position;
-        light.SetView(cy::Point3f(lightPosition),
-            cy::Point3f(0.0f, 0.0f, 0.0f),
-            cy::Point3f(0.0f, 1.0f, 0.0f));
-
-        i_program.SetUniformMatrix4("g_transform_light", light.data);
-
-        // Set the light projection transformation
-        i_program.SetUniformMatrix4("g_transform_lightProjection", g_lightProjection.data);
-
-        if (i_sceneType == SceneType::EReflectiveScene)
-        {
-            // Get the reflected camera transform
-            Transform cameraTransform_reflected = g_cameraTransform;
-            cameraTransform_reflected.orientation.x *= -1.0f;
-
-            cy::Matrix4f viewReflected;
-            GetMatrixFromTransform(viewReflected, cameraTransform_reflected);
-            i_program.SetUniformMatrix4("g_transform_viewReflected", viewReflected.data);
-        }
-        else if (i_sceneType == SceneType::EShadowedScene)
-        {
-            i_program.SetUniform("g_lightPosition", lightPosition.x, lightPosition.y, lightPosition.z);
-
-            i_program.SetUniform("g_ambientLightIntensity", g_ambientLightIntensity.x, g_ambientLightIntensity.y, g_ambientLightIntensity.z);
-            i_program.SetUniform("g_ambient", g_ambient.x, g_ambient.y, g_ambient.z);
-            i_program.SetUniform("g_diffuse", g_diffuse.x, g_diffuse.y, g_diffuse.z);
-            i_program.SetUniform("g_specular", g_specular.x, g_specular.y, g_specular.z);
-            i_program.SetUniform("g_shininess", g_shininess);
-        }
-
-        i_program.SetUniform("g_color", i_color.x, i_color.y, i_color.z);
-    }
+    // Set the color
+    g_planeGLProgram.SetUniform("g_color", 0.4f, 0.4f, 0.4f);
 
     // Draw the mesh
     {
         glBindVertexArray(g_planeBufferIds.vertexArrayId);
-
         static constexpr uint8_t indexCount = 6;
         glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_BYTE, 0);
-    }
-}
-
-void RenderMesh(SceneType i_sceneType,
-    cy::GLSLProgram& i_program,
-    const cy::Matrix4f& i_model,
-    const cy::Matrix4f& i_view,
-    const cy::Matrix4f& i_projection,
-    const BufferIdGroup& i_bufferIds,
-    const cy::TriMesh& i_mesh,
-    const cy::Point3f& i_color/* = WHITE*/)
-{
-    i_program.Bind();
-    {
-        // Set the model transformation
-        i_program.SetUniformMatrix4("g_transform_model", i_model.data);
-
-        // Set the view transformation
-        i_program.SetUniformMatrix4("g_transform_view", i_view.data);
-
-        // Set the projection transformation
-        i_program.SetUniformMatrix4("g_transform_projection", i_projection.data);
-
-        // Set the camera position
-        cy::Point3f cameraPosition = i_view.GetSubMatrix3() * g_cameraTransform.position;
-        i_program.SetUniform("g_cameraPosition", cameraPosition.x, cameraPosition.y, cameraPosition.z);
-
-        // Set the light transformation
-        cy::Matrix4f light;
-        constexpr bool isFlipped = true;
-        GetMatrixFromTransform(light, g_lightTransform, isFlipped);
-
-        cy::Point3f lightPosition(light * g_lightTransform.position);
-        light.SetView(lightPosition,
-            cy::Point3f(0.0f, 0.0f, 0.0f),
-            cy::Point3f(0.0f, 1.0f, 0.0f));
-
-        i_program.SetUniformMatrix4("g_transform_light", light.data);
-
-        // Set the light projection transformation
-        i_program.SetUniformMatrix4("g_transform_lightProjection", g_lightProjection.data);
-
-        // Set the light parameters
-        {
-            i_program.SetUniform("g_lightPosition", lightPosition.x, lightPosition.y, lightPosition.z);
-
-            i_program.SetUniform("g_ambientLightIntensity", g_ambientLightIntensity.x, g_ambientLightIntensity.y, g_ambientLightIntensity.z);
-            i_program.SetUniform("g_ambient", g_ambient.x, g_ambient.y, g_ambient.z);
-            i_program.SetUniform("g_diffuse", g_diffuse.x, g_diffuse.y, g_diffuse.z);
-            i_program.SetUniform("g_specular", g_specular.x, g_specular.y, g_specular.z);
-            i_program.SetUniform("g_shininess", g_shininess);
-        }
-
-        i_program.SetUniform("g_color", i_color.x, i_color.y, i_color.z);
-    }
-
-    // Attach and bind textures
-    if (i_sceneType == SceneType::EReflectiveScene)
-    {
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_CUBE_MAP, g_skyboxTextureId);
-    }
-    else if (i_sceneType == SceneType::ERegularScene)
-    {
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, g_teapotDiffuseTextureId);
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, g_teapotSpecularTextureId);
-    }
-
-    // Draw the mesh
-    {
-        glBindVertexArray(i_bufferIds.vertexArrayId);
-        glDrawArrays(GL_TRIANGLES, 0, i_mesh.NF() * 3);
     }
 }
 
@@ -1288,24 +462,9 @@ void Update(float DeltaSeconds)
     {
         static constexpr float rotationDamping = DEGREES_TO_RADIANS(10.0f);
 
-        // Light
-        if (g_controlPressed)
-        {
-            g_lightTransform.orientation.y += float(deltaMouseX) * rotationDamping;
-            g_lightTransform.orientation.x += float(deltaMouseY) * rotationDamping;
-        }
-        // Plane
-        else if (g_altPressed)
-        {
-            g_planeTransform.orientation.y += float(deltaMouseX) * rotationDamping;
-            g_planeTransform.orientation.x += float(deltaMouseY) * rotationDamping;
-        }
         // Camera
-        else
-        {
-            g_cameraTransform.orientation.y += float(deltaMouseX) * rotationDamping;
-            g_cameraTransform.orientation.x += float(deltaMouseY) * rotationDamping;
-        }
+        g_cameraTransform.orientation.y += float(deltaMouseX) * rotationDamping;
+        g_cameraTransform.orientation.x += float(deltaMouseY) * rotationDamping;
     }
 
     // Location
@@ -1313,38 +472,11 @@ void Update(float DeltaSeconds)
     {
         static constexpr float movementDamping = 0.05f;
 
-        //// Light
-        //if (g_controlPressed)
-        //{
-        //    g_lightTransform.position.x += float(deltaMouseX) * movementDamping;
-        //    g_lightTransform.position.y += float(deltaMouseY) * -movementDamping;
-        //}
-        //// Plane
-        //else if (g_altPressed)
-        //{
-        //    g_planeTransform.position.x += float(deltaMouseX) * movementDamping;
-        //    g_planeTransform.position.y += float(deltaMouseY) * -movementDamping;
-        //}
-        //// Camera
-        //else
-        {
-            g_cameraTransform.position.x += float(deltaMouseX) * movementDamping;
-            g_cameraTransform.position.y += float(deltaMouseY) * -movementDamping;
-        }
+        g_cameraTransform.position.x += float(deltaMouseX) * movementDamping;
+        g_cameraTransform.position.y += float(deltaMouseY) * -movementDamping;
     }
 
-    //if (g_controlPressed)
-    //{
-    //    g_lightTransform.position.z += mouseZ;
-    //}
-    //else if (g_altPressed)
-    //{
-    //    g_planeTransform.position.z += mouseZ;
-    //}
-    //else
-    {
-        g_cameraTransform.position.z += mouseZ;
-    }
+    g_cameraTransform.position.z += mouseZ;
 
     g_prevMouseX = g_currMouseX;
     g_prevMouseY = g_currMouseY;
