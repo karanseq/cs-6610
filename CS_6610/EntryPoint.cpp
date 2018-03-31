@@ -9,7 +9,8 @@
 #include <GL/glew.h>
 #include <GL/freeglut.h>
 
-// Windows includes
+// Math includes
+#include "Math/Transform.h"
 
 // Util includes
 #include "Utils/cyGL.h"
@@ -21,7 +22,6 @@
 
 //~====================================================================================================
 // Helpers
-#define M_PI 3.14159265359f
 #define DEGREES_TO_RADIANS(deg) ((deg) * M_PI / 180.0f)
 #define RADIANS_TO_DEGREES(rad) ((rad) * 180.0f / M_PI)
 
@@ -62,11 +62,6 @@ enum class SceneType
 
 //~====================================================================================================
 // Structures
-struct Transform
-{
-    cy::Point3f position;
-    cy::Point3f orientation;
-};
 
 struct BufferIdGroup
 {
@@ -97,8 +92,8 @@ int g_prevMouseZ = 0;
 // Data
 
 // Transforms
-Transform g_cameraTransform;
-Transform g_planeTransform;
+engine::math::Transform g_cameraTransform;
+engine::math::Transform g_planeTransform;
 
 // Matrices
 cy::Matrix4f g_perspectiveProjection;
@@ -141,15 +136,7 @@ void Render();
 // Update functions
 void Update(float DeltaSeconds);
 void GetMatrixFromTransform(cy::Matrix4f& o_matrix,
-    const Transform& i_transform,
-    bool i_flipped = false);
-void GetOrthographicProjection(cy::Matrix4f& o_matrix,
-    const float i_bottom,
-    const float i_top,
-    const float i_left,
-    const float i_right,
-    const float i_near,
-    const float i_far);
+    const engine::math::Transform& i_transform);
 
 
 //~====================================================================================================
@@ -328,11 +315,9 @@ bool BuildShader(cy::GLSLProgram& o_program,
 void InitMeshes()
 {
     //================================================
-    // Render Texture Plane
+    // Floor
 
-    // Initialize the plane's transform
-    g_planeTransform.position.Zero();
-    g_planeTransform.orientation.Zero();
+    g_planeTransform.rotation_ = engine::math::Quaternion::RIGHT;
 
     // Create a vertex array object and make it active
     {
@@ -389,11 +374,14 @@ void InitCamera()
 {
     // Initialize the transform
     {
-        g_cameraTransform.orientation.Zero();
-        g_cameraTransform.orientation.x = 30.0f;
-        g_cameraTransform.position.Zero();
-        //g_cameraTransform.position.y = -g_teapotTransform.position.y;
-        g_cameraTransform.position.z = -200.0f;
+        engine::math::Quaternion initialRotation = engine::math::Quaternion::RIGHT;
+        initialRotation.w_ = DEGREES_TO_RADIANS(-5.0f);
+
+        g_cameraTransform.rotation_ = engine::math::Quaternion::UP;
+        g_cameraTransform.rotation_ = initialRotation * g_cameraTransform.rotation_;
+        g_cameraTransform.rotation_.Normalize();
+
+        g_cameraTransform.position_.z_ = -200.0f;
     }
 
     // Initialize the perspective projection matrix
@@ -460,11 +448,17 @@ void Update(float DeltaSeconds)
     // Rotation
     if (g_leftMouseButtonPressed)
     {
-        static constexpr float rotationDamping = DEGREES_TO_RADIANS(10.0f);
+        static constexpr float rotationDamping = DEGREES_TO_RADIANS(0.05f);
 
         // Camera
-        g_cameraTransform.orientation.y += float(deltaMouseX) * rotationDamping;
-        g_cameraTransform.orientation.x += float(deltaMouseY) * rotationDamping;
+        if (abs(deltaMouseX) > 0.0f)
+        {
+            engine::math::Quaternion yaw = engine::math::Quaternion::UP;
+            yaw.w_ = float(deltaMouseX) * rotationDamping;
+
+            g_cameraTransform.rotation_ = yaw * g_cameraTransform.rotation_;
+            g_cameraTransform.rotation_.Normalize();
+        }
     }
 
     // Location
@@ -472,11 +466,11 @@ void Update(float DeltaSeconds)
     {
         static constexpr float movementDamping = 0.05f;
 
-        g_cameraTransform.position.x += float(deltaMouseX) * movementDamping;
-        g_cameraTransform.position.y += float(deltaMouseY) * -movementDamping;
+        g_cameraTransform.position_.x_ += float(deltaMouseX) * movementDamping;
+        g_cameraTransform.position_.y_ += float(deltaMouseY) * -movementDamping;
     }
 
-    g_cameraTransform.position.z += mouseZ;
+    g_cameraTransform.position_.z_ += mouseZ;
 
     g_prevMouseX = g_currMouseX;
     g_prevMouseY = g_currMouseY;
@@ -484,40 +478,50 @@ void Update(float DeltaSeconds)
     mouseZ -= mouseZ * decrement;
 }
 
-void GetMatrixFromTransform(cy::Matrix4f& o_matrix, const Transform& i_transform, bool i_flipped/* = false*/)
+void GetMatrixFromTransform(cy::Matrix4f& o_matrix, const engine::math::Transform& i_transform)
 {
-    const cy::Matrix4f matRotationX = cy::Matrix4f::MatrixRotationX(DEGREES_TO_RADIANS(i_transform.orientation.x));
-    const cy::Matrix4f matRotationY = cy::Matrix4f::MatrixRotationY(DEGREES_TO_RADIANS(i_transform.orientation.y));
-    const cy::Matrix4f matRotationZ = cy::Matrix4f::MatrixRotationZ(DEGREES_TO_RADIANS(i_transform.orientation.z));
-    const cy::Matrix4f matTranslation = cy::Matrix4f::MatrixTrans(i_transform.position);
-    o_matrix = i_flipped ? matRotationX * matRotationY * matRotationZ * matTranslation : matTranslation * matRotationX * matRotationY * matRotationZ;
-}
+    o_matrix.data[3] = 0.0f;
+    o_matrix.data[7] = 0.0f;
+    o_matrix.data[11] = 0.0f;
+    o_matrix.data[12] = i_transform.position_.x_;
+    o_matrix.data[13] = i_transform.position_.y_;
+    o_matrix.data[14] = i_transform.position_.z_;
+    o_matrix.data[15] = 1.0f;
 
-void GetOrthographicProjection(cy::Matrix4f& o_matrix,
-    const float i_left,
-    const float i_right,
-    const float i_bottom,
-    const float i_top,
-    const float i_near,
-    const float i_far)
-{
-    const float matrix[16] = {
-        2.0f / (i_right - i_left),
-        0.0f,
-        0.0f,
-        0.0f,
-        0.0f,
-        2.0f / (i_top - i_bottom),
-        0.0f,
-        0.0f,
-        0.0f,
-        0.0f,
-        -2.0f / (i_far - i_near),
-        0.0f,
-        -(i_right + i_left) / (i_right - i_left),
-        -(i_top + i_bottom) / (i_top - i_bottom),
-        -(i_far + i_near) / (i_far - i_near),
-        1.0f
-    };
-    o_matrix.Set(matrix);
+    const auto _2x = i_transform.rotation_.x_ + i_transform.rotation_.x_;
+    const auto _2y = i_transform.rotation_.y_ + i_transform.rotation_.y_;
+    const auto _2z = i_transform.rotation_.z_ + i_transform.rotation_.z_;
+    const auto _2xx = i_transform.rotation_.x_ * _2x;
+    const auto _2xy = _2x * i_transform.rotation_.y_;
+    const auto _2xz = _2x * i_transform.rotation_.z_;
+    const auto _2xw = _2x * i_transform.rotation_.w_;
+    const auto _2yy = _2y * i_transform.rotation_.y_;
+    const auto _2yz = _2y * i_transform.rotation_.z_;
+    const auto _2yw = _2y * i_transform.rotation_.w_;
+    const auto _2zz = _2z * i_transform.rotation_.z_;
+    const auto _2zw = _2z * i_transform.rotation_.w_;
+
+    //o_matrix.data[0] = 1.0f - _2yy - _2zz;
+    //o_matrix.data[4] = _2xy - _2zw;
+    //o_matrix.data[8] = _2xz + _2yw;
+
+    //o_matrix.data[1] = _2xy + _2zw;
+    //o_matrix.data[5] = 1.0f - _2xx - _2zz;
+    //o_matrix.data[9] = _2yz - _2xw;
+
+    //o_matrix.data[2] = _2xz - _2yw;
+    //o_matrix.data[6] = _2yz + _2xw;
+    //o_matrix.data[10] = 1.0f - _2xx - _2yy;
+
+    o_matrix.data[0] = 1.0f - _2yy - _2zz;
+    o_matrix.data[1] = _2xy - _2zw;
+    o_matrix.data[2] = _2xz + _2yw;
+
+    o_matrix.data[4] = _2xy + _2zw;
+    o_matrix.data[5] = 1.0f - _2xx - _2zz;
+    o_matrix.data[6] = _2yz - _2xw;
+
+    o_matrix.data[8] = _2xz - _2yw;
+    o_matrix.data[9] = _2yz + _2xw;
+    o_matrix.data[10] = 1.0f - _2xx - _2yy;
 }

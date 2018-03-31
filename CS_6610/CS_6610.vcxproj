@@ -160,9 +160,29 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="EntryPoint.cpp" />
+    <ClCompile Include="Math\Mat44.cpp" />
+    <ClCompile Include="Math\MathUtil.cpp" />
+    <ClCompile Include="Math\Quaternion.cpp" />
+    <ClCompile Include="Math\Transform.cpp" />
+    <ClCompile Include="Math\Vec2D.cpp" />
+    <ClCompile Include="Math\Vec3D.cpp" />
+    <ClCompile Include="Math\Vec4D.cpp" />
     <ClCompile Include="Utils\lodepng.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Math\Mat44-inl.h" />
+    <ClInclude Include="Math\Mat44.h" />
+    <ClInclude Include="Math\MathUtil.h" />
+    <ClInclude Include="Math\Quaternion-inl.h" />
+    <ClInclude Include="Math\Quaternion.h" />
+    <ClInclude Include="Math\Transform-inl.h" />
+    <ClInclude Include="Math\Transform.h" />
+    <ClInclude Include="Math\Vec2D-inl.h" />
+    <ClInclude Include="Math\Vec2D.h" />
+    <ClInclude Include="Math\Vec3D-inl.h" />
+    <ClInclude Include="Math\Vec3D.h" />
+    <ClInclude Include="Math\Vec4D-inl.h" />
+    <ClInclude Include="Math\Vec4D.h" />
     <ClInclude Include="Utils\cyCore.h" />
     <ClInclude Include="Utils\cyGL.h" />
     <ClInclude Include="Utils\cyMatrix.h" />
