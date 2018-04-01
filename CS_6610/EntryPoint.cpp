@@ -65,6 +65,7 @@ int g_currMouseZ = 0;
 int g_prevMouseX = 0;
 int g_prevMouseY = 0;
 int g_prevMouseZ = 0;
+uint8_t g_selectedJoint = 0;
 
 
 //~====================================================================================================
@@ -222,6 +223,14 @@ void KeyboardFunc(unsigned char key, int x, int y)
     if (key == ESC_KEY)
     {
         glutLeaveMainLoop();
+    }
+    else if (key == 'w')
+    {
+        g_selectedJoint = g_selectedJoint < g_skeleton->num_joints - 1 ? g_selectedJoint + 1 : 0;
+    }
+    else if (key == 's')
+    {
+        g_selectedJoint = g_selectedJoint == 0 ? g_skeleton->num_joints - 1 : g_selectedJoint - 1;
     }
 }
 
@@ -407,7 +416,14 @@ void Render()
             g_planeGLProgram.SetUniformMatrix4("g_transform_model", g_skeleton->global_joint_transforms[i].data);
 
             // Set the color
-            g_planeGLProgram.SetUniform("g_color", 0.2f, 0.5f, 1.0f);
+            if (i == g_selectedJoint)
+            {
+                g_planeGLProgram.SetUniform("g_color", 0.7f, 0.7f, 0.0f);
+            }
+            else
+            {
+                g_planeGLProgram.SetUniform("g_color", 0.2f, 0.5f, 1.0f);
+            }
 
             glBindVertexArray(g_skeletonBufferIds[i].vertexArrayId);
             glDrawElements(GL_TRIANGLES, MeshHelpers::NUM_INDICES_IN_BOX, GL_UNSIGNED_BYTE, 0);
@@ -436,22 +452,32 @@ void Update(float DeltaSeconds)
     {
         static constexpr float rotationDamping = DEGREES_TO_RADIANS(0.05f);
 
-        if (g_altPressed)
+        if (g_controlPressed)
         {
-            // Root bone
+            // Joint rotation
             if (abs(deltaMouseX) > 0.0f)
             {
                 engine::math::Quaternion roll = engine::math::Quaternion::FORWARD;
                 roll.w_ = float(-deltaMouseX) * rotationDamping;
 
-                engine::math::Quaternion& rootBoneRotation = g_skeleton->joints[0].local_to_parent.rotation_;
-                rootBoneRotation = roll * roll * rootBoneRotation;
-                rootBoneRotation.Normalize();
+                engine::math::Quaternion& jointRotation = g_skeleton->joints[g_selectedJoint].local_to_parent.rotation_;
+                jointRotation = roll * roll * jointRotation;
+                jointRotation.Normalize();
+            }
+
+            if (abs(deltaMouseY) > 0.0f)
+            {
+                engine::math::Quaternion pitch = engine::math::Quaternion::RIGHT;
+                pitch.w_ = float(-deltaMouseY) * rotationDamping;
+
+                engine::math::Quaternion& jointRotation = g_skeleton->joints[g_selectedJoint].local_to_parent.rotation_;
+                jointRotation = pitch * pitch * jointRotation;
+                jointRotation.Normalize();
             }
         }
         else
         {
-            // Camera
+            // Camera rotation
             if (abs(deltaMouseX) > 0.0f)
             {
                 engine::math::Quaternion yaw = engine::math::Quaternion::UP;
@@ -469,8 +495,18 @@ void Update(float DeltaSeconds)
     {
         static constexpr float movementDamping = 0.05f;
 
-        g_cameraTransform.position_.x_ += float(deltaMouseX) * movementDamping;
-        g_cameraTransform.position_.y_ += float(deltaMouseY) * -movementDamping;
+        // Joint rotation
+        if (g_controlPressed)
+        {
+            engine::math::Vec3D& jointPosition = g_skeleton->joints[g_selectedJoint].local_to_parent.position_;
+            jointPosition.x_ += float(deltaMouseX) * -movementDamping;
+            jointPosition.y_ += float(deltaMouseY) * -movementDamping;
+        }
+        else
+        {
+            g_cameraTransform.position_.x_ += float(deltaMouseX) * movementDamping;
+            g_cameraTransform.position_.y_ += float(deltaMouseY) * -movementDamping;
+        }
     }
 
     g_cameraTransform.position_.z_ += mouseZ;
@@ -505,42 +541,6 @@ void UpdateGlobalJointTransform(const uint8_t i_jointIndex)
     g_skeleton->global_joint_transforms[i_jointIndex] = parent_to_world * local_to_parent;
 }
 
-//void GetMatrixFromTransform(cy::Matrix4f& o_matrix, const engine::math::Transform& i_transform)
-//{
-//    o_matrix.data[3] = 0.0f;
-//    o_matrix.data[7] = 0.0f;
-//    o_matrix.data[11] = 0.0f;
-//    o_matrix.data[12] = i_transform.position_.x_;
-//    o_matrix.data[13] = i_transform.position_.y_;
-//    o_matrix.data[14] = i_transform.position_.z_;
-//    o_matrix.data[15] = 1.0f;
-//
-//    const auto _2x = i_transform.rotation_.x_ + i_transform.rotation_.x_;
-//    const auto _2y = i_transform.rotation_.y_ + i_transform.rotation_.y_;
-//    const auto _2z = i_transform.rotation_.z_ + i_transform.rotation_.z_;
-//    const auto _2xx = i_transform.rotation_.x_ * _2x;
-//    const auto _2xy = _2x * i_transform.rotation_.y_;
-//    const auto _2xz = _2x * i_transform.rotation_.z_;
-//    const auto _2xw = _2x * i_transform.rotation_.w_;
-//    const auto _2yy = _2y * i_transform.rotation_.y_;
-//    const auto _2yz = _2y * i_transform.rotation_.z_;
-//    const auto _2yw = _2y * i_transform.rotation_.w_;
-//    const auto _2zz = _2z * i_transform.rotation_.z_;
-//    const auto _2zw = _2z * i_transform.rotation_.w_;
-//
-//    o_matrix.data[0] = 1.0f - _2yy - _2zz;
-//    o_matrix.data[4] = _2xy - _2zw;
-//    o_matrix.data[8] = _2xz + _2yw;
-//
-//    o_matrix.data[1] = _2xy + _2zw;
-//    o_matrix.data[5] = 1.0f - _2xx - _2zz;
-//    o_matrix.data[9] = _2yz - _2xw;
-//
-//    o_matrix.data[2] = _2xz - _2yw;
-//    o_matrix.data[6] = _2yz + _2xw;
-//    o_matrix.data[10] = 1.0f - _2xx - _2yy;
-//}
-
 void GetMatrixFromTransform(cy::Matrix4f& o_matrix, const engine::math::Transform& i_transform)
 {
     o_matrix.data[3] = 0.0f;
@@ -551,31 +551,30 @@ void GetMatrixFromTransform(cy::Matrix4f& o_matrix, const engine::math::Transfor
     o_matrix.data[14] = i_transform.position_.z_;
     o_matrix.data[15] = 1.0f;
 
-    const float xSq = i_transform.rotation_.x_ * i_transform.rotation_.x_;
-    const float ySq = i_transform.rotation_.y_ * i_transform.rotation_.y_;
-    const float zSq = i_transform.rotation_.z_ * i_transform.rotation_.z_;
-    const float wSq = i_transform.rotation_.w_ * i_transform.rotation_.w_;
-    const float twoX = 2.0f * i_transform.rotation_.x_;
-    const float twoY = 2.0f * i_transform.rotation_.y_;
-    const float twoW = 2.0f * i_transform.rotation_.w_;
-    const float xy = twoX * i_transform.rotation_.y_;
-    const float xz = twoX * i_transform.rotation_.z_;
-    const float yz = twoY * i_transform.rotation_.z_;
-    const float wx = twoW * i_transform.rotation_.x_;
-    const float wy = twoW * i_transform.rotation_.y_;
-    const float wz = twoW * i_transform.rotation_.z_;
+    const auto _2x = i_transform.rotation_.x_ + i_transform.rotation_.x_;
+    const auto _2y = i_transform.rotation_.y_ + i_transform.rotation_.y_;
+    const auto _2z = i_transform.rotation_.z_ + i_transform.rotation_.z_;
+    const auto _2xx = i_transform.rotation_.x_ * _2x;
+    const auto _2xy = _2x * i_transform.rotation_.y_;
+    const auto _2xz = _2x * i_transform.rotation_.z_;
+    const auto _2xw = _2x * i_transform.rotation_.w_;
+    const auto _2yy = _2y * i_transform.rotation_.y_;
+    const auto _2yz = _2y * i_transform.rotation_.z_;
+    const auto _2yw = _2y * i_transform.rotation_.w_;
+    const auto _2zz = _2z * i_transform.rotation_.z_;
+    const auto _2zw = _2z * i_transform.rotation_.w_;
 
-    o_matrix.data[0] = wSq + xSq - ySq - zSq;
-    o_matrix.data[4] = xy - wz;
-    o_matrix.data[8] = xz + wy;
-    
-    o_matrix.data[1] = xy + wz;
-    o_matrix.data[5] = wSq - xSq + ySq - zSq;
-    o_matrix.data[9] = yz - wx;
-    
-    o_matrix.data[2] = xz - wy;
-    o_matrix.data[6] = yz + wx;
-    o_matrix.data[10] = wSq - xSq - ySq + zSq;
+    o_matrix.data[0] = 1.0f - _2yy - _2zz;
+    o_matrix.data[4] = _2xy - _2zw;
+    o_matrix.data[8] = _2xz + _2yw;
+
+    o_matrix.data[1] = _2xy + _2zw;
+    o_matrix.data[5] = 1.0f - _2xx - _2zz;
+    o_matrix.data[9] = _2yz - _2xw;
+
+    o_matrix.data[2] = _2xz - _2yw;
+    o_matrix.data[6] = _2yz + _2xw;
+    o_matrix.data[10] = 1.0f - _2xx - _2yy;
 }
 
 void PrintMatrix(const cy::Matrix4f& i_matrix)
