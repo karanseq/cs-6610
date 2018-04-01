@@ -340,24 +340,117 @@ void InitCamera()
 
 void InitSkeleton()
 {
+#if 0
+
+    constexpr uint16_t num_joints = 5;
+
     // New skeleton
     g_skeleton = new engine::animation::Skeleton;
+    g_skeleton->bone_length = 5.0f;
 
     // Allocate joints
-    g_skeleton->num_joints = 5;
-    g_skeleton->joints = static_cast<engine::animation::Joint*>(malloc(sizeof(engine::animation::Joint) * g_skeleton->num_joints));
-    g_skeleton->global_joint_transforms = static_cast<cy::Matrix4f*>(malloc(sizeof(cy::Matrix4f) * g_skeleton->num_joints));
-
-    // Dummy initialize local joint's transform
-    engine::math::Transform initial_transform;
-    initial_transform.position_.y_ = 5.0f;
+    g_skeleton->num_joints = num_joints;
+    g_skeleton->joints = new engine::animation::Joint[num_joints];
+    g_skeleton->global_joint_transforms = new cy::Matrix4f[num_joints];
 
     // Initialize the joints
-    for (uint8_t i = 0; i < g_skeleton->num_joints; ++i)
+    for (uint8_t i = 0; i < num_joints; ++i)
     {
         g_skeleton->joints[i].parent_index = i - 1;
-        g_skeleton->joints[i].local_to_parent = initial_transform;
+        g_skeleton->joints[i].local_to_parent.position_.y_ = g_skeleton->bone_length;
     }
+
+#else
+
+    //-----------------------
+    // The Skeletal Structure
+    //
+    //            6
+    //            |
+    // 14--10--5--1--4--9--13
+    //            |
+    //            0
+    //          /   \
+    //         3     2
+    //         |     |
+    //         8     7
+    //         |     |
+    //         12    11
+    //
+    //-----------------------
+
+    constexpr uint16_t num_joints = 15;
+    constexpr float bone_length = 5.0f;
+    
+    constexpr uint8_t PELVIS = 0;
+    constexpr uint8_t TORSO = 1;
+    constexpr uint8_t UP_LEFT_LEG = 2;
+    constexpr uint8_t UP_RIGHT_LEG = 3;
+    constexpr uint8_t UP_LEFT_ARM = 4;
+    constexpr uint8_t UP_RIGHT_ARM = 5;
+    constexpr uint8_t HEAD = 6;
+    constexpr uint8_t LOW_LEFT_LEG = 7;
+    constexpr uint8_t LOW_RIGHT_LEG = 8;
+    constexpr uint8_t LOW_LEFT_ARM = 9;
+    constexpr uint8_t LOW_RIGHT_ARM = 10;
+    constexpr uint8_t LEFT_FOOT = 11;
+    constexpr uint8_t RIGHT_FOOT = 12;
+    constexpr uint8_t LEFT_HAND = 13;
+    constexpr uint8_t RIGHT_HAND = 14;
+
+    // New skeleton
+    g_skeleton = new engine::animation::Skeleton;
+    g_skeleton->bone_length = bone_length;
+
+    // Allocate joints
+    g_skeleton->num_joints = num_joints;
+    g_skeleton->joints = new engine::animation::Joint[num_joints];
+    g_skeleton->global_joint_transforms = new cy::Matrix4f[num_joints];
+
+    // Root
+    g_skeleton->joints[PELVIS].local_to_parent.position_.y_ = 3 * bone_length;
+
+    // Spine
+    g_skeleton->joints[TORSO].parent_index = PELVIS;
+    g_skeleton->joints[TORSO].local_to_parent.position_.y_ = bone_length;
+    g_skeleton->joints[HEAD].parent_index = TORSO;
+    g_skeleton->joints[HEAD].local_to_parent.position_.y_ = bone_length;
+
+    // Left leg
+    g_skeleton->joints[UP_LEFT_LEG].parent_index = PELVIS;
+    g_skeleton->joints[UP_LEFT_LEG].local_to_parent.position_.x_ = 0.75f * bone_length;
+    g_skeleton->joints[UP_LEFT_LEG].local_to_parent.position_.y_ = -bone_length;
+    g_skeleton->joints[LOW_LEFT_LEG].parent_index = UP_LEFT_LEG;
+    g_skeleton->joints[LOW_LEFT_LEG].local_to_parent.position_.y_ = -bone_length;
+    g_skeleton->joints[LEFT_FOOT].parent_index = LOW_LEFT_LEG;
+    g_skeleton->joints[LEFT_FOOT].local_to_parent.position_.y_ = -bone_length;
+    
+    // Right leg
+    g_skeleton->joints[UP_RIGHT_LEG].parent_index = PELVIS;
+    g_skeleton->joints[UP_RIGHT_LEG].local_to_parent.position_.x_ = -0.75f * bone_length;
+    g_skeleton->joints[UP_RIGHT_LEG].local_to_parent.position_.y_ = -bone_length;
+    g_skeleton->joints[LOW_RIGHT_LEG].parent_index = UP_RIGHT_LEG;
+    g_skeleton->joints[LOW_RIGHT_LEG].local_to_parent.position_.y_ = -bone_length;
+    g_skeleton->joints[RIGHT_FOOT].parent_index = LOW_RIGHT_LEG;
+    g_skeleton->joints[RIGHT_FOOT].local_to_parent.position_.y_ = -bone_length;
+
+    // Left arm
+    g_skeleton->joints[UP_LEFT_ARM].parent_index = TORSO;
+    g_skeleton->joints[UP_LEFT_ARM].local_to_parent.position_.x_ = bone_length;
+    g_skeleton->joints[LOW_LEFT_ARM].parent_index = UP_LEFT_ARM;
+    g_skeleton->joints[LOW_LEFT_ARM].local_to_parent.position_.x_ = bone_length;
+    g_skeleton->joints[LEFT_HAND].parent_index = LOW_LEFT_ARM;
+    g_skeleton->joints[LEFT_HAND].local_to_parent.position_.x_ = bone_length;
+
+    // Right arm
+    g_skeleton->joints[UP_RIGHT_ARM].parent_index = TORSO;
+    g_skeleton->joints[UP_RIGHT_ARM].local_to_parent.position_.x_ = -bone_length;
+    g_skeleton->joints[LOW_RIGHT_ARM].parent_index = UP_RIGHT_ARM;
+    g_skeleton->joints[LOW_RIGHT_ARM].local_to_parent.position_.x_ = -bone_length;
+    g_skeleton->joints[RIGHT_HAND].parent_index = LOW_RIGHT_ARM;
+    g_skeleton->joints[RIGHT_HAND].local_to_parent.position_.x_ = -bone_length;
+
+#endif
 
     UpdateSkeleton();
     InitSkeletonMesh();
@@ -490,18 +583,19 @@ void Update(float DeltaSeconds)
         }
     }
 
-    // Location
+    // Position
     if (g_rightMouseButtonPressed)
     {
         static constexpr float movementDamping = 0.05f;
 
-        // Joint rotation
+        // Joint position
         if (g_controlPressed)
         {
             engine::math::Vec3D& jointPosition = g_skeleton->joints[g_selectedJoint].local_to_parent.position_;
             jointPosition.x_ += float(deltaMouseX) * -movementDamping;
             jointPosition.y_ += float(deltaMouseY) * -movementDamping;
         }
+        // Camera position
         else
         {
             g_cameraTransform.position_.x_ += float(deltaMouseX) * movementDamping;
