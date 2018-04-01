@@ -9,7 +9,8 @@
 #include <GL/glew.h>
 #include <GL/freeglut.h>
 
-// Math includes
+// Engine includes
+#include "Animation/Skeleton.h"
 #include "Math/Transform.h"
 
 // Util includes
@@ -18,6 +19,7 @@
 #include "Utils/cyTriMesh.h"
 #include "Utils/lodepng.h"
 #include "Utils/logger.h"
+#include "Utils/MeshHelpers.h"
 
 
 //~====================================================================================================
@@ -50,29 +52,6 @@ const cy::Point3f WHITE(1.0f, 1.0f, 1.0f);
 const cy::Point3f GREY(0.5f, 0.5f, 0.5f);
 
 
-
-//~====================================================================================================
-// Enums
-enum class SceneType
-{
-    ERegularScene,
-    EReflectiveScene,
-    EShadowedScene
-};
-
-//~====================================================================================================
-// Structures
-
-struct BufferIdGroup
-{
-    GLuint vertexArrayId = INVALID_INDEX;
-    GLuint vertexBufferId = INVALID_INDEX;
-    GLuint normalBufferId = INVALID_INDEX;
-    GLuint texCoordId = INVALID_INDEX;
-    GLuint indexBufferId = INVALID_INDEX;
-};
-
-
 //~====================================================================================================
 // Counters
 std::chrono::time_point<std::chrono::steady_clock> LAST_DRAW_TIME_POINT;
@@ -94,6 +73,7 @@ int g_prevMouseZ = 0;
 // Transforms
 engine::math::Transform g_cameraTransform;
 engine::math::Transform g_planeTransform;
+engine::math::Transform g_rootBoneTransform;
 
 // Matrices
 cy::Matrix4f g_perspectiveProjection;
@@ -102,11 +82,14 @@ cy::Matrix4f g_perspectiveProjection;
 cy::GLSLProgram g_planeGLProgram;
 
 // Buffer IDs
-// Teapot
 BufferIdGroup g_planeBufferIds;
+BufferIdGroup* g_skeletonBufferIds;
 
 // Misc
 std::stringstream g_messageStream;
+
+// Skeleton
+engine::animation::Skeleton* g_skeleton = nullptr;
 
 
 //~====================================================================================================
@@ -129,14 +112,19 @@ bool BuildShader(cy::GLSLProgram& o_program,
     const char* i_fragmentShaderPath);
 void InitMeshes();
 void InitCamera();
+void InitSkeleton();
+void InitSkeletonMesh();
 
 // Render functions
 void Render();
 
 // Update functions
 void Update(float DeltaSeconds);
+void UpdateSkeleton();
+void UpdateGlobalJointTransform(const uint8_t i_jointIndex);
 void GetMatrixFromTransform(cy::Matrix4f& o_matrix,
     const engine::math::Transform& i_transform);
+void PrintMatrix(const cy::Matrix4f& i_matrix);
 
 
 //~====================================================================================================
@@ -189,10 +177,9 @@ int main(int argcp, char** argv)
     // initialize content
     {
         BuildShaders();
-        {
-            InitMeshes();
-        }
+        InitMeshes();
         InitCamera();
+        InitSkeleton();
     }
 
     LAST_DRAW_TIME_POINT = std::chrono::steady_clock::now();
@@ -318,70 +305,17 @@ void InitMeshes()
     // Floor
 
     g_planeTransform.rotation_ = engine::math::Quaternion::RIGHT;
-
-    // Create a vertex array object and make it active
-    {
-        constexpr GLsizei arrayCount = 1;
-        glGenVertexArrays(arrayCount, &g_planeBufferIds.vertexArrayId);
-        glBindVertexArray(g_planeBufferIds.vertexArrayId);
-    }
-
-    // Create a vertex buffer object and make it active
-    {
-        constexpr GLsizei bufferCount = 1;
-        glGenBuffers(bufferCount, &g_planeBufferIds.vertexBufferId);
-        glBindBuffer(GL_ARRAY_BUFFER, g_planeBufferIds.vertexBufferId);
-    }
-
-    // Assign data to the vertex buffer
-    {
-        constexpr uint8_t numVertices = 4;
-        constexpr float halfSize = 50.0f;
-        const cy::Point3f vertices[numVertices] = {
-            { -halfSize, 0.0f, halfSize },     // bottom-left
-            { halfSize, 0.0f, halfSize },      // bottom-right
-            { halfSize, 0.0f, -halfSize },       // top-right
-            { -halfSize, 0.0f, -halfSize }       // top-left
-        };
-
-        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    }
-
-    // Initialize vertex position attribute
-    {
-        constexpr GLuint vertexElementLocation = 0;
-        constexpr GLuint elementCount = 3;
-        glVertexAttribPointer(vertexElementLocation, elementCount, GL_FLOAT, GL_FALSE, 0, 0);
-        glEnableVertexAttribArray(vertexElementLocation);
-    }
-
-    // Create an index buffer object and make it active
-    {
-        constexpr GLsizei bufferCount = 1;
-        glGenBuffers(bufferCount, &g_planeBufferIds.indexBufferId);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_planeBufferIds.indexBufferId);
-    }
-
-    // Assign data to the index buffer
-    {
-        constexpr uint8_t numIndices = 6;
-        constexpr uint8_t indices[numIndices] = { 0, 1, 2, 0, 2, 3 };
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-    }
+    constexpr float planeHalfWidth = 50.0f;
+    MeshHelpers::CreatePlaneMesh(g_planeBufferIds, planeHalfWidth);
 }
 
 void InitCamera()
 {
     // Initialize the transform
     {
-        engine::math::Quaternion initialRotation = engine::math::Quaternion::RIGHT;
-        initialRotation.w_ = DEGREES_TO_RADIANS(-5.0f);
-
         g_cameraTransform.rotation_ = engine::math::Quaternion::UP;
-        g_cameraTransform.rotation_ = initialRotation * g_cameraTransform.rotation_;
-        g_cameraTransform.rotation_.Normalize();
-
-        g_cameraTransform.position_.z_ = -200.0f;
+        g_cameraTransform.position_.y_ = -15.0f;
+        g_cameraTransform.position_.z_ = -100.0f;
     }
 
     // Initialize the perspective projection matrix
@@ -392,6 +326,42 @@ void InitCamera()
         static constexpr float zFar = 1000.0f;
 
         g_perspectiveProjection = cy::Matrix4f::MatrixPerspective(fov, aspectRatio, zNear, zFar);
+    }
+}
+
+void InitSkeleton()
+{
+    // New skeleton
+    g_skeleton = new engine::animation::Skeleton;
+
+    // Allocate joints
+    g_skeleton->num_joints = 5;
+    g_skeleton->joints = static_cast<engine::animation::Joint*>(malloc(sizeof(engine::animation::Joint) * g_skeleton->num_joints));
+    g_skeleton->global_joint_transforms = static_cast<cy::Matrix4f*>(malloc(sizeof(cy::Matrix4f) * g_skeleton->num_joints));
+
+    // Dummy initialize local joint's transform
+    engine::math::Transform initial_transform;
+    initial_transform.position_.y_ = 5.0f;
+
+    // Initialize the joints
+    for (uint8_t i = 0; i < g_skeleton->num_joints; ++i)
+    {
+        g_skeleton->joints[i].parent_index = i - 1;
+        g_skeleton->joints[i].local_to_parent = initial_transform;
+    }
+
+    UpdateSkeleton();
+    InitSkeletonMesh();
+}
+
+void InitSkeletonMesh()
+{
+    constexpr float halfWidth = 0.5f;
+
+    g_skeletonBufferIds = static_cast<BufferIdGroup*>(malloc(sizeof(BufferIdGroup) * g_skeleton->num_joints));
+    for (uint16_t i = 0; i < g_skeleton->num_joints; ++i)
+    {
+        MeshHelpers::CreateBoxMesh(g_skeletonBufferIds[i], halfWidth);
     }
 }
 
@@ -407,11 +377,6 @@ void Render()
     // Bind the shaders
     g_planeGLProgram.Bind();
 
-    // Set the model transformation
-    cy::Matrix4f model;
-    GetMatrixFromTransform(model, g_planeTransform);
-    g_planeGLProgram.SetUniformMatrix4("g_transform_model", model.data);
-
     // Set the view transformation
     cy::Matrix4f view;
     GetMatrixFromTransform(view, g_cameraTransform);
@@ -420,14 +385,33 @@ void Render()
     // Set the projection matrix
     g_planeGLProgram.SetUniformMatrix4("g_transform_projection", g_perspectiveProjection.data);
 
-    // Set the color
-    g_planeGLProgram.SetUniform("g_color", 0.4f, 0.4f, 0.4f);
-
-    // Draw the mesh
+    // Draw the floor
     {
+        // Set the model transformation
+        cy::Matrix4f model;
+        GetMatrixFromTransform(model, g_planeTransform);
+        g_planeGLProgram.SetUniformMatrix4("g_transform_model", model.data);
+
+        // Set the color
+        g_planeGLProgram.SetUniform("g_color", 0.4f, 0.4f, 0.4f);
+
         glBindVertexArray(g_planeBufferIds.vertexArrayId);
-        static constexpr uint8_t indexCount = 6;
-        glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_BYTE, 0);
+        glDrawElements(GL_TRIANGLES, MeshHelpers::NUM_INDICES_IN_PLANE, GL_UNSIGNED_BYTE, 0);
+    }
+
+    // Draw the skeleton
+    {
+        for (uint8_t i = 0; i < g_skeleton->num_joints; ++i)
+        {
+            // Set the model transformation
+            g_planeGLProgram.SetUniformMatrix4("g_transform_model", g_skeleton->global_joint_transforms[i].data);
+
+            // Set the color
+            g_planeGLProgram.SetUniform("g_color", 0.2f, 0.5f, 1.0f);
+
+            glBindVertexArray(g_skeletonBufferIds[i].vertexArrayId);
+            glDrawElements(GL_TRIANGLES, MeshHelpers::NUM_INDICES_IN_BOX, GL_UNSIGNED_BYTE, 0);
+        }
     }
 }
 
@@ -436,6 +420,8 @@ void Render()
 
 void Update(float DeltaSeconds)
 {
+    UpdateSkeleton();
+
     static constexpr float decrement = 0.1f;
     static float mouseZ = 0.0f;
 
@@ -450,14 +436,31 @@ void Update(float DeltaSeconds)
     {
         static constexpr float rotationDamping = DEGREES_TO_RADIANS(0.05f);
 
-        // Camera
-        if (abs(deltaMouseX) > 0.0f)
+        if (g_altPressed)
         {
-            engine::math::Quaternion yaw = engine::math::Quaternion::UP;
-            yaw.w_ = float(deltaMouseX) * rotationDamping;
+            // Root bone
+            if (abs(deltaMouseX) > 0.0f)
+            {
+                engine::math::Quaternion roll = engine::math::Quaternion::FORWARD;
+                roll.w_ = float(-deltaMouseX) * rotationDamping;
 
-            g_cameraTransform.rotation_ = yaw * g_cameraTransform.rotation_;
-            g_cameraTransform.rotation_.Normalize();
+                engine::math::Quaternion& rootBoneRotation = g_skeleton->joints[0].local_to_parent.rotation_;
+                rootBoneRotation = roll * roll * rootBoneRotation;
+                rootBoneRotation.Normalize();
+            }
+        }
+        else
+        {
+            // Camera
+            if (abs(deltaMouseX) > 0.0f)
+            {
+                engine::math::Quaternion yaw = engine::math::Quaternion::UP;
+                yaw.w_ = float(-deltaMouseX) * rotationDamping;
+                yaw.Normalize();
+
+                g_cameraTransform.rotation_ = yaw * yaw * g_cameraTransform.rotation_;
+                g_cameraTransform.rotation_.Normalize();
+            }
         }
     }
 
@@ -478,6 +481,66 @@ void Update(float DeltaSeconds)
     mouseZ -= mouseZ * decrement;
 }
 
+void UpdateSkeleton()
+{
+    GetMatrixFromTransform(g_skeleton->global_joint_transforms[0], g_skeleton->joints[0].local_to_parent);
+
+    for (uint8_t i = 1; i < g_skeleton->num_joints; ++i)
+    {
+        UpdateGlobalJointTransform(i);
+    }
+}
+
+void UpdateGlobalJointTransform(const uint8_t i_jointIndex)
+{
+    // Get local to parent transformation matrix
+    cy::Matrix4f local_to_parent;
+    GetMatrixFromTransform(local_to_parent, g_skeleton->joints[i_jointIndex].local_to_parent);
+
+    // Get parent to world transformation matrix
+    const uint8_t& parent_index = g_skeleton->joints[i_jointIndex].parent_index;
+    cy::Matrix4f& parent_to_world = g_skeleton->global_joint_transforms[parent_index];
+
+    // Set local to world transformation matrix
+    g_skeleton->global_joint_transforms[i_jointIndex] = parent_to_world * local_to_parent;
+}
+
+//void GetMatrixFromTransform(cy::Matrix4f& o_matrix, const engine::math::Transform& i_transform)
+//{
+//    o_matrix.data[3] = 0.0f;
+//    o_matrix.data[7] = 0.0f;
+//    o_matrix.data[11] = 0.0f;
+//    o_matrix.data[12] = i_transform.position_.x_;
+//    o_matrix.data[13] = i_transform.position_.y_;
+//    o_matrix.data[14] = i_transform.position_.z_;
+//    o_matrix.data[15] = 1.0f;
+//
+//    const auto _2x = i_transform.rotation_.x_ + i_transform.rotation_.x_;
+//    const auto _2y = i_transform.rotation_.y_ + i_transform.rotation_.y_;
+//    const auto _2z = i_transform.rotation_.z_ + i_transform.rotation_.z_;
+//    const auto _2xx = i_transform.rotation_.x_ * _2x;
+//    const auto _2xy = _2x * i_transform.rotation_.y_;
+//    const auto _2xz = _2x * i_transform.rotation_.z_;
+//    const auto _2xw = _2x * i_transform.rotation_.w_;
+//    const auto _2yy = _2y * i_transform.rotation_.y_;
+//    const auto _2yz = _2y * i_transform.rotation_.z_;
+//    const auto _2yw = _2y * i_transform.rotation_.w_;
+//    const auto _2zz = _2z * i_transform.rotation_.z_;
+//    const auto _2zw = _2z * i_transform.rotation_.w_;
+//
+//    o_matrix.data[0] = 1.0f - _2yy - _2zz;
+//    o_matrix.data[4] = _2xy - _2zw;
+//    o_matrix.data[8] = _2xz + _2yw;
+//
+//    o_matrix.data[1] = _2xy + _2zw;
+//    o_matrix.data[5] = 1.0f - _2xx - _2zz;
+//    o_matrix.data[9] = _2yz - _2xw;
+//
+//    o_matrix.data[2] = _2xz - _2yw;
+//    o_matrix.data[6] = _2yz + _2xw;
+//    o_matrix.data[10] = 1.0f - _2xx - _2yy;
+//}
+
 void GetMatrixFromTransform(cy::Matrix4f& o_matrix, const engine::math::Transform& i_transform)
 {
     o_matrix.data[3] = 0.0f;
@@ -488,40 +551,37 @@ void GetMatrixFromTransform(cy::Matrix4f& o_matrix, const engine::math::Transfor
     o_matrix.data[14] = i_transform.position_.z_;
     o_matrix.data[15] = 1.0f;
 
-    const auto _2x = i_transform.rotation_.x_ + i_transform.rotation_.x_;
-    const auto _2y = i_transform.rotation_.y_ + i_transform.rotation_.y_;
-    const auto _2z = i_transform.rotation_.z_ + i_transform.rotation_.z_;
-    const auto _2xx = i_transform.rotation_.x_ * _2x;
-    const auto _2xy = _2x * i_transform.rotation_.y_;
-    const auto _2xz = _2x * i_transform.rotation_.z_;
-    const auto _2xw = _2x * i_transform.rotation_.w_;
-    const auto _2yy = _2y * i_transform.rotation_.y_;
-    const auto _2yz = _2y * i_transform.rotation_.z_;
-    const auto _2yw = _2y * i_transform.rotation_.w_;
-    const auto _2zz = _2z * i_transform.rotation_.z_;
-    const auto _2zw = _2z * i_transform.rotation_.w_;
+    const float xSq = i_transform.rotation_.x_ * i_transform.rotation_.x_;
+    const float ySq = i_transform.rotation_.y_ * i_transform.rotation_.y_;
+    const float zSq = i_transform.rotation_.z_ * i_transform.rotation_.z_;
+    const float wSq = i_transform.rotation_.w_ * i_transform.rotation_.w_;
+    const float twoX = 2.0f * i_transform.rotation_.x_;
+    const float twoY = 2.0f * i_transform.rotation_.y_;
+    const float twoW = 2.0f * i_transform.rotation_.w_;
+    const float xy = twoX * i_transform.rotation_.y_;
+    const float xz = twoX * i_transform.rotation_.z_;
+    const float yz = twoY * i_transform.rotation_.z_;
+    const float wx = twoW * i_transform.rotation_.x_;
+    const float wy = twoW * i_transform.rotation_.y_;
+    const float wz = twoW * i_transform.rotation_.z_;
 
-    //o_matrix.data[0] = 1.0f - _2yy - _2zz;
-    //o_matrix.data[4] = _2xy - _2zw;
-    //o_matrix.data[8] = _2xz + _2yw;
+    o_matrix.data[0] = wSq + xSq - ySq - zSq;
+    o_matrix.data[4] = xy - wz;
+    o_matrix.data[8] = xz + wy;
+    
+    o_matrix.data[1] = xy + wz;
+    o_matrix.data[5] = wSq - xSq + ySq - zSq;
+    o_matrix.data[9] = yz - wx;
+    
+    o_matrix.data[2] = xz - wy;
+    o_matrix.data[6] = yz + wx;
+    o_matrix.data[10] = wSq - xSq - ySq + zSq;
+}
 
-    //o_matrix.data[1] = _2xy + _2zw;
-    //o_matrix.data[5] = 1.0f - _2xx - _2zz;
-    //o_matrix.data[9] = _2yz - _2xw;
-
-    //o_matrix.data[2] = _2xz - _2yw;
-    //o_matrix.data[6] = _2yz + _2xw;
-    //o_matrix.data[10] = 1.0f - _2xx - _2yy;
-
-    o_matrix.data[0] = 1.0f - _2yy - _2zz;
-    o_matrix.data[1] = _2xy - _2zw;
-    o_matrix.data[2] = _2xz + _2yw;
-
-    o_matrix.data[4] = _2xy + _2zw;
-    o_matrix.data[5] = 1.0f - _2xx - _2zz;
-    o_matrix.data[6] = _2yz - _2xw;
-
-    o_matrix.data[8] = _2xz - _2yw;
-    o_matrix.data[9] = _2yz + _2xw;
-    o_matrix.data[10] = 1.0f - _2xx - _2yy;
+void PrintMatrix(const cy::Matrix4f& i_matrix)
+{
+    LOG("%f %f %f %f", i_matrix.data[0], i_matrix.data[1], i_matrix.data[2], i_matrix.data[3]);
+    LOG("%f %f %f %f", i_matrix.data[4], i_matrix.data[5], i_matrix.data[6], i_matrix.data[7]);
+    LOG("%f %f %f %f", i_matrix.data[8], i_matrix.data[9], i_matrix.data[10], i_matrix.data[11]);
+    LOG("%f %f %f %f", i_matrix.data[12], i_matrix.data[13], i_matrix.data[14], i_matrix.data[15]);
 }

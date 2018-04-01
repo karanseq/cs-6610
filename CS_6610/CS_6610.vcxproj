@@ -93,7 +93,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)External\GLEW\include;$(SolutionDir)External\FreeGLUT\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(SolutionDir)External\GLEW\include;$(SolutionDir)External\FreeGLUT\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -109,7 +109,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)External\GLEW\include;$(SolutionDir)External\FreeGLUT\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(SolutionDir)External\GLEW\include;$(SolutionDir)External\FreeGLUT\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -127,7 +127,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)External\GLEW\include;$(SolutionDir)External\FreeGLUT\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(SolutionDir)External\GLEW\include;$(SolutionDir)External\FreeGLUT\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -147,7 +147,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)External\GLEW\include;$(SolutionDir)External\FreeGLUT\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(SolutionDir)External\GLEW\include;$(SolutionDir)External\FreeGLUT\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -159,6 +159,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Animation\Skeleton.cpp" />
     <ClCompile Include="EntryPoint.cpp" />
     <ClCompile Include="Math\Mat44.cpp" />
     <ClCompile Include="Math\MathUtil.cpp" />
@@ -168,8 +169,10 @@
     <ClCompile Include="Math\Vec3D.cpp" />
     <ClCompile Include="Math\Vec4D.cpp" />
     <ClCompile Include="Utils\lodepng.cpp" />
+    <ClCompile Include="Utils\MeshHelpers.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Animation\Skeleton.h" />
     <ClInclude Include="Math\Mat44-inl.h" />
     <ClInclude Include="Math\Mat44.h" />
     <ClInclude Include="Math\MathUtil.h" />
@@ -190,6 +193,7 @@
     <ClInclude Include="Utils\cyTriMesh.h" />
     <ClInclude Include="Utils\lodepng.h" />
     <ClInclude Include="Utils\logger.h" />
+    <ClInclude Include="Utils\MeshHelpers.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
