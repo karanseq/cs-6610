@@ -639,7 +639,14 @@ void Update(float DeltaSeconds)
         }
     }
 
-    g_cameraTransform.position_.z_ += mouseZ;
+    if (g_altPressed)
+    {
+        g_targetTransform.position_.z_ += mouseZ;
+    }
+    else
+    {
+        g_cameraTransform.position_.z_ += mouseZ;
+    }
 
     g_prevMouseX = g_currMouseX;
     g_prevMouseY = g_currMouseY;

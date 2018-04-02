@@ -10,10 +10,11 @@ void FABRIK(const FABRIKParams& i_params)
 {
     const float chain_length = CalculateChainLength(i_params.skeleton, i_params.root_joint_index, i_params.end_joint_index);
 
-    const engine::math::Vec3D end_effector_world_space = i_params.skeleton->joint_to_world_transforms[i_params.end_joint_index] * i_params.skeleton->joints[i_params.end_joint_index].local_to_parent.position_;
+    const engine::math::Vec3D end_world_space = i_params.skeleton->joint_to_world_transforms[i_params.end_joint_index] * engine::math::Vec3D::ZERO;
+    const float end_to_target_length_squared = (i_params.target - end_world_space).LengthSquared();
 
     // Is the target within reach?
-    if ((i_params.target - end_effector_world_space).LengthSquared() > chain_length * chain_length)
+    if (end_to_target_length_squared > chain_length * chain_length)
     {
         // When the target is out of reach,
         // we simply stretch the chain from root to target
