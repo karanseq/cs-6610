@@ -66,6 +66,9 @@
     <ClCompile Include="Utils\lodepng.cpp">
       <Filter>Source Files\Utils</Filter>
     </ClCompile>
+    <ClCompile Include="Animation\FABRIK.cpp">
+      <Filter>Source Files\Animation</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Math\Quaternion.h">
@@ -133,6 +136,9 @@
     </ClInclude>
     <ClInclude Include="Utils\logger.h">
       <Filter>Header Files\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="Animation\FABRIK.h">
+      <Filter>Header Files\Animation</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

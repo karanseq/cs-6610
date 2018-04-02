@@ -23,13 +23,12 @@ struct Joint
 struct Skeleton
 {
     Joint*                      joints = nullptr;
-    cy::Matrix4f*               global_joint_transforms = nullptr;
+    cy::Matrix4f*               joint_to_world_transforms = nullptr;
+    cy::Matrix4f*               world_to_joint_transforms = nullptr;
     float                       bone_length = 0.0f;
     uint16_t                    num_joints = 0;
 
 }; // struct Skeleton
-
-
 
 } // namespace animation
 } // namespace engine

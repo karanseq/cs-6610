@@ -10,6 +10,7 @@
 #include <GL/freeglut.h>
 
 // Engine includes
+#include "Animation/FABRIK.h"
 #include "Animation/Skeleton.h"
 #include "Math/Transform.h"
 
@@ -59,6 +60,7 @@ bool g_leftMouseButtonPressed = false;
 bool g_rightMouseButtonPressed = false;
 bool g_controlPressed = false;
 bool g_altPressed = false;
+bool g_fPressed = false;
 int g_currMouseX = 0;
 int g_currMouseY = 0;
 int g_currMouseZ = 0;
@@ -75,6 +77,7 @@ uint8_t g_selectedJoint = 0;
 engine::math::Transform g_cameraTransform;
 engine::math::Transform g_planeTransform;
 engine::math::Transform g_rootBoneTransform;
+engine::math::Transform g_targetTransform;
 
 // Matrices
 cy::Matrix4f g_perspectiveProjection;
@@ -85,6 +88,7 @@ cy::GLSLProgram g_planeGLProgram;
 // Buffer IDs
 BufferIdGroup g_planeBufferIds;
 BufferIdGroup* g_skeletonBufferIds;
+BufferIdGroup g_targetBufferIds;
 
 // Misc
 std::stringstream g_messageStream;
@@ -122,7 +126,7 @@ void Render();
 // Update functions
 void Update(float DeltaSeconds);
 void UpdateSkeleton();
-void UpdateGlobalJointTransform(const uint8_t i_jointIndex);
+void UpdateJointTransforms(const uint8_t i_jointIndex);
 void GetMatrixFromTransform(cy::Matrix4f& o_matrix,
     const engine::math::Transform& i_transform);
 void PrintMatrix(const cy::Matrix4f& i_matrix);
@@ -232,6 +236,8 @@ void KeyboardFunc(unsigned char key, int x, int y)
     {
         g_selectedJoint = g_selectedJoint == 0 ? g_skeleton->num_joints - 1 : g_selectedJoint - 1;
     }
+
+    g_fPressed = key == 'f';
 }
 
 void SpecialFunc(int key, int x, int y)
@@ -316,6 +322,12 @@ void InitMeshes()
     g_planeTransform.rotation_ = engine::math::Quaternion::RIGHT;
     constexpr float planeHalfWidth = 50.0f;
     MeshHelpers::CreatePlaneMesh(g_planeBufferIds, planeHalfWidth);
+
+    g_targetTransform.rotation_ = engine::math::Quaternion::RIGHT;
+    g_targetTransform.position_.x_ = 30.0f;
+    g_targetTransform.position_.y_ = 30.0f;
+    constexpr float halfWidth = 0.5f;
+    MeshHelpers::CreateBoxMesh(g_targetBufferIds, halfWidth);
 }
 
 void InitCamera()
@@ -340,7 +352,7 @@ void InitCamera()
 
 void InitSkeleton()
 {
-#if 0
+#if 1
 
     constexpr uint16_t num_joints = 5;
 
@@ -351,10 +363,13 @@ void InitSkeleton()
     // Allocate joints
     g_skeleton->num_joints = num_joints;
     g_skeleton->joints = new engine::animation::Joint[num_joints];
-    g_skeleton->global_joint_transforms = new cy::Matrix4f[num_joints];
+    g_skeleton->joint_to_world_transforms = new cy::Matrix4f[num_joints];
+    g_skeleton->world_to_joint_transforms = new cy::Matrix4f[num_joints];
 
     // Initialize the joints
-    for (uint8_t i = 0; i < num_joints; ++i)
+    g_skeleton->joints[0].parent_index = 0;
+
+    for (uint8_t i = 1; i < num_joints; ++i)
     {
         g_skeleton->joints[i].parent_index = i - 1;
         g_skeleton->joints[i].local_to_parent.position_.y_ = g_skeleton->bone_length;
@@ -405,7 +420,8 @@ void InitSkeleton()
     // Allocate joints
     g_skeleton->num_joints = num_joints;
     g_skeleton->joints = new engine::animation::Joint[num_joints];
-    g_skeleton->global_joint_transforms = new cy::Matrix4f[num_joints];
+    g_skeleton->joint_to_world_transforms = new cy::Matrix4f[num_joints];
+    g_skeleton->world_to_joint_transforms = new cy::Matrix4f[num_joints];
 
     // Root
     g_skeleton->joints[PELVIS].local_to_parent.position_.y_ = 3 * bone_length;
@@ -506,7 +522,7 @@ void Render()
         for (uint8_t i = 0; i < g_skeleton->num_joints; ++i)
         {
             // Set the model transformation
-            g_planeGLProgram.SetUniformMatrix4("g_transform_model", g_skeleton->global_joint_transforms[i].data);
+            g_planeGLProgram.SetUniformMatrix4("g_transform_model", g_skeleton->joint_to_world_transforms[i].data);
 
             // Set the color
             if (i == g_selectedJoint)
@@ -521,6 +537,20 @@ void Render()
             glBindVertexArray(g_skeletonBufferIds[i].vertexArrayId);
             glDrawElements(GL_TRIANGLES, MeshHelpers::NUM_INDICES_IN_BOX, GL_UNSIGNED_BYTE, 0);
         }
+    }
+
+    // Draw the target
+    {
+        // Set the model transformation
+        cy::Matrix4f model;
+        GetMatrixFromTransform(model, g_targetTransform);
+        g_planeGLProgram.SetUniformMatrix4("g_transform_model", model.data);
+
+        // Set the color
+        g_planeGLProgram.SetUniform("g_color", 0.75f, 0.5f, 0.0f);
+
+        glBindVertexArray(g_targetBufferIds.vertexArrayId);
+        glDrawElements(GL_TRIANGLES, MeshHelpers::NUM_INDICES_IN_BOX, GL_UNSIGNED_BYTE, 0);
     }
 }
 
@@ -595,6 +625,12 @@ void Update(float DeltaSeconds)
             jointPosition.x_ += float(deltaMouseX) * -movementDamping;
             jointPosition.y_ += float(deltaMouseY) * -movementDamping;
         }
+        // Target position
+        else if (g_altPressed)
+        {
+            g_targetTransform.position_.x_ += float(deltaMouseX) * -movementDamping;
+            g_targetTransform.position_.y_ += float(deltaMouseY) * -movementDamping;
+        }
         // Camera position
         else
         {
@@ -613,15 +649,31 @@ void Update(float DeltaSeconds)
 
 void UpdateSkeleton()
 {
-    GetMatrixFromTransform(g_skeleton->global_joint_transforms[0], g_skeleton->joints[0].local_to_parent);
+    GetMatrixFromTransform(g_skeleton->joint_to_world_transforms[0], g_skeleton->joints[0].local_to_parent);
+    g_skeleton->world_to_joint_transforms[0] = g_skeleton->joint_to_world_transforms[0].GetInverse();
 
     for (uint8_t i = 1; i < g_skeleton->num_joints; ++i)
     {
-        UpdateGlobalJointTransform(i);
+        UpdateJointTransforms(i);
+    }
+
+    if (g_fPressed)
+    {
+        g_fPressed = false;
+
+        // Prepare FABRIK parameters
+        engine::animation::FABRIKParams params;
+        params.target = g_targetTransform.position_;
+        params.skeleton = g_skeleton;
+        params.root_joint_index = 0;
+        params.end_joint_index = g_skeleton->num_joints - 1;
+
+        // Solve
+        engine::animation::FABRIK(params);
     }
 }
 
-void UpdateGlobalJointTransform(const uint8_t i_jointIndex)
+void UpdateJointTransforms(const uint8_t i_jointIndex)
 {
     // Get local to parent transformation matrix
     cy::Matrix4f local_to_parent;
@@ -629,10 +681,11 @@ void UpdateGlobalJointTransform(const uint8_t i_jointIndex)
 
     // Get parent to world transformation matrix
     const uint8_t& parent_index = g_skeleton->joints[i_jointIndex].parent_index;
-    cy::Matrix4f& parent_to_world = g_skeleton->global_joint_transforms[parent_index];
+    cy::Matrix4f& parent_to_world = g_skeleton->joint_to_world_transforms[parent_index];
 
     // Set local to world transformation matrix
-    g_skeleton->global_joint_transforms[i_jointIndex] = parent_to_world * local_to_parent;
+    g_skeleton->joint_to_world_transforms[i_jointIndex] = parent_to_world * local_to_parent;
+    g_skeleton->world_to_joint_transforms[i_jointIndex] = g_skeleton->joint_to_world_transforms[i_jointIndex].GetInverse();
 }
 
 void GetMatrixFromTransform(cy::Matrix4f& o_matrix, const engine::math::Transform& i_transform)

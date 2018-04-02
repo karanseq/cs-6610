@@ -159,6 +159,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Animation\FABRIK.cpp" />
     <ClCompile Include="Animation\Skeleton.cpp" />
     <ClCompile Include="EntryPoint.cpp" />
     <ClCompile Include="Math\Mat44.cpp" />
@@ -172,6 +173,7 @@
     <ClCompile Include="Utils\MeshHelpers.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Animation\FABRIK.h" />
     <ClInclude Include="Animation\Skeleton.h" />
     <ClInclude Include="Math\Mat44-inl.h" />
     <ClInclude Include="Math\Mat44.h" />

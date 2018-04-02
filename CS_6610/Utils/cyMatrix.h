@@ -37,6 +37,7 @@
 //-------------------------------------------------------------------------------
 
 #include "cyPoint.h"
+#include "Math/Vec3D.h"
 
 //-------------------------------------------------------------------------------
 namespace cy {
@@ -1672,6 +1673,12 @@ public:
         TYPE *rd = rr.Data();
         _CY_IVDEP_FOR ( int i=0; i<4; ++i ) rd[i] = a[i] + a[4+i];
         return rr;
+    }
+    engine::math::Vec3D operator*(const engine::math::Vec3D& i_vec)
+    {
+        return engine::math::Vec3D( i_vec.x_ * data[0] + i_vec.y_ * data[4] + i_vec.z_ * data[ 8] + data[12],
+                                    i_vec.x_ * data[1] + i_vec.y_ * data[5] + i_vec.z_ * data[ 9] + data[13],
+                                    i_vec.x_ * data[2] + i_vec.y_ * data[6] + i_vec.z_ * data[10] + data[14] );
     }
 
 

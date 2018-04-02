@@ -1,6 +1,6 @@
 #include "MathUtil.h"
 
-// engine includes
+// Engine includes
 #include "Quaternion.h"
 #include "Transform.h"
 #include "Vec2D.h"
