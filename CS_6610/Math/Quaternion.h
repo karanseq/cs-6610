@@ -55,6 +55,7 @@ public:
     void Normalize();
     Quaternion GetNormalized() const;
     Vec3D GetForwardVector() const;
+    static Quaternion GetShortestRotation(const Vec3D& i_from, const Vec3D& i_to);
 
     // constants
     static const Quaternion     IDENTITY;

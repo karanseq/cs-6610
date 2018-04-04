@@ -28,6 +28,7 @@ void FABRIK(const FABRIKParams& i_params);
 
 void SolveForward(const FABRIKParams& i_params);
 void SolveBackward(const FABRIKParams& i_params);
+void UpdateRotations(const FABRIKParams& i_params);
 
 float CalculateChainLength(const Skeleton* i_skeleton, uint16_t i_rootJointIndex, uint16_t i_endJointIndex);
 

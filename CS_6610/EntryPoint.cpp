@@ -374,7 +374,7 @@ void InitSkeleton()
     for (uint8_t i = 1; i < num_joints; ++i)
     {
         g_skeleton->joints[i].parent_index = i - 1;
-        g_skeleton->joints[i].local_to_parent.position_.y_ = g_skeleton->bone_length;
+        //g_skeleton->joints[i].local_to_parent.position_.y_ = g_skeleton->bone_length;
     }
 
 #else
@@ -472,6 +472,14 @@ void InitSkeleton()
 
     UpdateSkeleton();
     InitSkeletonMesh();
+
+    for (uint16_t i = 0; i < g_skeleton->num_joints; ++i)
+    {
+        LOG("Joint-%d to World Matrix:", i);
+        PrintMatrix(g_skeleton->joint_to_world_transforms[i]);
+        LOG("World to Joint-%d Matrix:", i);
+        PrintMatrix(g_skeleton->world_to_joint_transforms[i]);
+    }
 }
 
 void InitSkeletonMesh()
@@ -660,7 +668,7 @@ void Update(float DeltaSeconds)
 
 void UpdateSkeleton()
 {
-    GetMatrixFromTransform(g_skeleton->joint_to_world_transforms[0], g_skeleton->joints[0].local_to_parent);
+    GetMatrixFromTransform(g_skeleton->joint_to_world_transforms[0], g_skeleton->joints[0].local_to_parent);    
     g_skeleton->world_to_joint_transforms[0] = g_skeleton->joint_to_world_transforms[0].GetInverse();
 
     for (uint8_t i = 1; i < g_skeleton->num_joints; ++i)
@@ -687,9 +695,12 @@ void UpdateSkeleton()
 
 void UpdateJointTransforms(const uint8_t i_jointIndex)
 {
+    static const cy::Point3f jointOffset(0.0f, g_skeleton->bone_length, 0.0f);
+
     // Get local to parent transformation matrix
     cy::Matrix4f local_to_parent;
     GetMatrixFromTransform(local_to_parent, g_skeleton->joints[i_jointIndex].local_to_parent);
+    local_to_parent.AddTrans(jointOffset);
 
     // Get parent to world transformation matrix
     const uint8_t& parent_index = g_skeleton->joints[i_jointIndex].parent_index;

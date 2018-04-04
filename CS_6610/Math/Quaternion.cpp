@@ -81,5 +81,45 @@ Vec3D Quaternion::GetForwardVector() const
     return Vec3D(-_2xz - _2yw, -_2yz + _2xw, -1.0f + _2xx + _2yy);
 }
 
+Quaternion Quaternion::GetShortestRotation(const Vec3D& i_from, const Vec3D& i_to)
+{
+    Quaternion rotation;
+    Vec3D from = i_from.Normalize();
+    Vec3D to = i_to.Normalize();
+
+    float dot = DotProduct(from, to);
+    // Check if vectors are the same
+    if (dot >= 1.0f)
+    {
+        return Quaternion::IDENTITY;
+    }
+
+    // Check if vectors are opposite
+    if (dot < (1e-6f - 1.0f))
+    {
+        // Generate an axis
+        Vec3D axis = CrossProduct(Vec3D::UNIT_X, from);
+        // Pick another axis if colinear
+        if (axis.IsZero())
+        {
+            axis = CrossProduct(Vec3D::UNIT_Y, from);
+        }
+        axis.Normalize();
+        return Quaternion(M_PI, axis);
+    }
+
+    float square_root = std::sqrt((1 + dot) * 2);
+    float inverse = 1 / square_root;
+
+    Vec3D cross = CrossProduct(from, to);
+    rotation.x_ = cross.x_ * inverse;
+    rotation.y_ = cross.y_ * inverse;
+    rotation.z_ = cross.z_ * inverse;
+    rotation.w_ = square_root * 0.5f;
+    rotation.Normalize();
+
+    return rotation;
+}
+
 } // namespace math
 } // namespace engine
