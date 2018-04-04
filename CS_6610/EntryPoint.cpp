@@ -324,8 +324,8 @@ void InitMeshes()
     MeshHelpers::CreatePlaneMesh(g_planeBufferIds, planeHalfWidth);
 
     g_targetTransform.rotation_ = engine::math::Quaternion::RIGHT;
-    g_targetTransform.position_.x_ = 30.0f;
-    g_targetTransform.position_.y_ = 30.0f;
+    g_targetTransform.position_.x_ = 15.0f;
+    g_targetTransform.position_.y_ = 15.0f;
     constexpr float halfWidth = 0.5f;
     MeshHelpers::CreateBoxMesh(g_targetBufferIds, halfWidth);
 }
@@ -519,6 +519,8 @@ void Render()
 
     // Draw the skeleton
     {
+        const cy::Point3f jointOffset = cy::Point3f(0.0f, g_skeleton->bone_length, 0.0f);
+
         for (uint8_t i = 0; i < g_skeleton->num_joints; ++i)
         {
             // Set the model transformation

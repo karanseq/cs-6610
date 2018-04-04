@@ -25,8 +25,8 @@ struct FABRIKParams
 
 void FABRIK(const FABRIKParams& i_params);
 
-void SolveForward(Skeleton* io_skeleton, const engine::math::Vec3D& i_target);
-void SolveBackward(Skeleton* io_skeleton, const engine::math::Vec3D& i_target);
+void SolveForward(const FABRIKParams& i_params);
+void SolveBackward(const FABRIKParams& i_params);
 
 float CalculateChainLength(const Skeleton* i_skeleton, uint16_t i_rootJointIndex, uint16_t i_endJointIndex);
 

@@ -10,7 +10,8 @@ void FABRIK(const FABRIKParams& i_params)
 {
     const float chain_length = CalculateChainLength(i_params.skeleton, i_params.root_joint_index, i_params.end_joint_index);
 
-    const engine::math::Vec3D end_world_space = i_params.skeleton->joint_to_world_transforms[i_params.end_joint_index] * engine::math::Vec3D::ZERO;
+    const cy::Point3f end_trans = i_params.skeleton->joint_to_world_transforms[i_params.end_joint_index].GetTrans();
+    const engine::math::Vec3D end_world_space(end_trans.x, end_trans.y, end_trans.z);
     const float end_to_target_length_squared = (i_params.target - end_world_space).LengthSquared();
 
     // Is the target within reach?
@@ -31,15 +32,20 @@ void FABRIK(const FABRIKParams& i_params)
         // When the target is within reach,
         // we solve till either the end effector is "close enough"
         // or we run out of iterations
-
+        SolveBackward(i_params);
+        SolveForward(i_params);
     }
 }
 
-void SolveForward(Skeleton* io_skeleton, const engine::math::Vec3D& i_target)
-{}
+void SolveForward(const FABRIKParams& i_params)
+{
 
-void SolveBackward(Skeleton* io_skeleton, const engine::math::Vec3D& i_target)
-{}
+}
+
+void SolveBackward(const FABRIKParams& i_params)
+{
+
+}
 
 float CalculateChainLength(const Skeleton* i_skeleton, uint16_t i_rootJointIndex, uint16_t i_endJointIndex)
 {
