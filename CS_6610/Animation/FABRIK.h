@@ -19,7 +19,8 @@ struct FABRIKParams
     Skeleton*                           skeleton = nullptr;
     uint16_t                            root_joint_index = 0;
     uint16_t                            end_joint_index = 0;
-    uint8_t                             i_iterations = 10;
+    uint8_t                             iterations = 10;
+    engine::math::Vec3D*                solved_joints = nullptr;
 
 }; // struct FABRIKParams
 

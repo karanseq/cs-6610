@@ -170,6 +170,7 @@
     <ClCompile Include="Math\Vec3D.cpp" />
     <ClCompile Include="Math\Vec4D.cpp" />
     <ClCompile Include="Utils\lodepng.cpp" />
+    <ClCompile Include="Utils\logger.cpp" />
     <ClCompile Include="Utils\MeshHelpers.cpp" />
   </ItemGroup>
   <ItemGroup>

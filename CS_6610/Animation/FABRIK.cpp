@@ -3,6 +3,9 @@
 // Engine includes
 #include "Animation/Skeleton.h"
 
+// Util includes
+#include "Utils/logger.h"
+
 namespace engine {
 namespace animation {
 
@@ -39,7 +42,35 @@ void FABRIK(const FABRIKParams& i_params)
 
 void SolveForward(const FABRIKParams& i_params)
 {
+    uint16_t joint_index = i_params.end_joint_index;
+    uint16_t parent_index = i_params.skeleton->joints[i_params.end_joint_index].parent_index;
+    
+    i_params.solved_joints[joint_index] = i_params.target;
+    i_params.skeleton->joints[joint_index].local_to_parent.position_ = i_params.skeleton->world_to_joint_transforms[joint_index] * i_params.solved_joints[joint_index];
+    LOG("Joint-%d local:%f, %f, %f world:%f, %f, %f", joint_index,
+        i_params.skeleton->joints[joint_index].local_to_parent.position_.x_, i_params.skeleton->joints[joint_index].local_to_parent.position_.y_, i_params.skeleton->joints[joint_index].local_to_parent.position_.z_,
+        i_params.solved_joints[joint_index].x_, i_params.solved_joints[joint_index].y_, i_params.solved_joints[joint_index].z_
+    );
 
+    // Keep going till we reach the root of the chain
+    while (joint_index != i_params.root_joint_index)
+    {
+        const cy::Point3f parent_trans = i_params.skeleton->joint_to_world_transforms[parent_index].GetTrans();
+        const engine::math::Vec3D parent_world_space(parent_trans.x, parent_trans.y, parent_trans.z);
+        const engine::math::Vec3D joint_to_parent = parent_world_space - i_params.solved_joints[joint_index];
+        const engine::math::Vec3D joint_to_parent_normalized = joint_to_parent.Normalize();
+
+        i_params.solved_joints[parent_index] = i_params.solved_joints[joint_index] + (joint_to_parent_normalized * i_params.skeleton->bone_length);
+        i_params.skeleton->joints[parent_index].local_to_parent.position_ = i_params.skeleton->world_to_joint_transforms[parent_index] * i_params.solved_joints[parent_index];
+        LOG("Joint-%d local:%f, %f, %f world:%f, %f, %f", parent_index,
+            i_params.skeleton->joints[parent_index].local_to_parent.position_.x_, i_params.skeleton->joints[parent_index].local_to_parent.position_.y_, i_params.skeleton->joints[parent_index].local_to_parent.position_.z_,
+            i_params.solved_joints[parent_index].x_, i_params.solved_joints[parent_index].y_, i_params.solved_joints[parent_index].z_
+        );
+
+        // Update joint indices
+        joint_index = parent_index;
+        parent_index = i_params.skeleton->joints[joint_index].parent_index;
+    }
 }
 
 void SolveBackward(const FABRIKParams& i_params)

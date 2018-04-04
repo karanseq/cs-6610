@@ -95,6 +95,7 @@ std::stringstream g_messageStream;
 
 // Skeleton
 engine::animation::Skeleton* g_skeleton = nullptr;
+engine::math::Vec3D* g_solvedJoints = nullptr;
 
 
 //~====================================================================================================
@@ -324,8 +325,8 @@ void InitMeshes()
     MeshHelpers::CreatePlaneMesh(g_planeBufferIds, planeHalfWidth);
 
     g_targetTransform.rotation_ = engine::math::Quaternion::RIGHT;
-    g_targetTransform.position_.x_ = 15.0f;
-    g_targetTransform.position_.y_ = 15.0f;
+    g_targetTransform.position_.x_ = 20.0f;
+    //g_targetTransform.position_.y_ = 15.0f;
     constexpr float halfWidth = 0.5f;
     MeshHelpers::CreateBoxMesh(g_targetBufferIds, halfWidth);
 }
@@ -365,6 +366,7 @@ void InitSkeleton()
     g_skeleton->joints = new engine::animation::Joint[num_joints];
     g_skeleton->joint_to_world_transforms = new cy::Matrix4f[num_joints];
     g_skeleton->world_to_joint_transforms = new cy::Matrix4f[num_joints];
+    g_solvedJoints = new engine::math::Vec3D[num_joints];
 
     // Initialize the joints
     g_skeleton->joints[0].parent_index = 0;
@@ -676,6 +678,7 @@ void UpdateSkeleton()
         params.skeleton = g_skeleton;
         params.root_joint_index = 0;
         params.end_joint_index = g_skeleton->num_joints - 1;
+        params.solved_joints = g_solvedJoints;
 
         // Solve
         engine::animation::FABRIK(params);
