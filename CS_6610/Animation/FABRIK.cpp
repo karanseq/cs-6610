@@ -10,16 +10,16 @@ void FABRIK(const FABRIKParams& i_params)
 {
     const float chain_length = CalculateChainLength(i_params.skeleton, i_params.root_joint_index, i_params.end_joint_index);
 
-    const cy::Point3f end_trans = i_params.skeleton->joint_to_world_transforms[i_params.end_joint_index].GetTrans();
-    const engine::math::Vec3D end_world_space(end_trans.x, end_trans.y, end_trans.z);
-    const float end_to_target_length_squared = (i_params.target - end_world_space).LengthSquared();
+    const cy::Point3f root_trans = i_params.skeleton->joint_to_world_transforms[i_params.root_joint_index].GetTrans();
+    const engine::math::Vec3D root_world_space(root_trans.x, root_trans.y, root_trans.z);
+    const engine::math::Vec3D root_to_target = i_params.target - engine::math::Vec3D(root_trans.x, root_trans.y, root_trans.z);
 
     // Is the target within reach?
-    if (end_to_target_length_squared > chain_length * chain_length)
+    if (root_to_target.LengthSquared() > chain_length * chain_length)
     {
         // When the target is out of reach,
         // we simply stretch the chain from root to target
-        const engine::math::Vec3D root_to_target = i_params.target - (i_params.skeleton->joint_to_world_transforms[i_params.root_joint_index] * i_params.skeleton->joints[i_params.root_joint_index].local_to_parent.position_);
+        const cy::Point3f root_trans = i_params.skeleton->joint_to_world_transforms[i_params.root_joint_index].GetTrans();        
         const engine::math::Vec3D root_to_target_normalized = root_to_target.Normalize();
 
         for (uint16_t i = i_params.root_joint_index + 1; i <= i_params.end_joint_index; ++i)
