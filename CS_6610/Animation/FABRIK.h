@@ -31,6 +31,7 @@ void SolveBackward(const FABRIKParams& i_params);
 void UpdateRotations(const FABRIKParams& i_params);
 
 float CalculateChainLength(const Skeleton* i_skeleton, uint16_t i_rootJointIndex, uint16_t i_endJointIndex);
+void PrintSolvedJoints(const FABRIKParams& i_params);
 
 } // namespace animation
 } // namespace engine

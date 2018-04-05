@@ -128,6 +128,9 @@ void Render();
 void Update(float DeltaSeconds);
 void UpdateSkeleton();
 void UpdateJointTransforms(const uint8_t i_jointIndex);
+
+// Other functions
+void SolveFABRIK();
 void GetMatrixFromTransform(cy::Matrix4f& o_matrix,
     const engine::math::Transform& i_transform);
 void PrintMatrix(const cy::Matrix4f& i_matrix);
@@ -366,6 +369,8 @@ void InitSkeleton()
     g_skeleton->joints = new engine::animation::Joint[num_joints];
     g_skeleton->joint_to_world_transforms = new cy::Matrix4f[num_joints];
     g_skeleton->world_to_joint_transforms = new cy::Matrix4f[num_joints];
+	g_skeleton->joint_to_world_rotations = new engine::math::Quaternion[num_joints];
+	g_skeleton->world_to_joint_rotations = new engine::math::Quaternion[num_joints];
     g_solvedJoints = new engine::math::Vec3D[num_joints];
 
     // Initialize the joints
@@ -374,7 +379,7 @@ void InitSkeleton()
     for (uint8_t i = 1; i < num_joints; ++i)
     {
         g_skeleton->joints[i].parent_index = i - 1;
-        //g_skeleton->joints[i].local_to_parent.position_.y_ = g_skeleton->bone_length;
+		g_skeleton->joints[i].local_to_parent.position_.y_ = g_skeleton->bone_length;
     }
 
 #else
@@ -473,13 +478,13 @@ void InitSkeleton()
     UpdateSkeleton();
     InitSkeletonMesh();
 
-    for (uint16_t i = 0; i < g_skeleton->num_joints; ++i)
-    {
-        LOG("Joint-%d to World Matrix:", i);
-        PrintMatrix(g_skeleton->joint_to_world_transforms[i]);
-        LOG("World to Joint-%d Matrix:", i);
-        PrintMatrix(g_skeleton->world_to_joint_transforms[i]);
-    }
+    //for (uint16_t i = 0; i < g_skeleton->num_joints; ++i)
+    //{
+    //    LOG("Joint-%d to World Matrix:", i);
+    //    PrintMatrix(g_skeleton->joint_to_world_transforms[i]);
+    //    LOG("World to Joint-%d Matrix:", i);
+    //    PrintMatrix(g_skeleton->world_to_joint_transforms[i]);
+    //}
 }
 
 void InitSkeletonMesh()
@@ -668,7 +673,7 @@ void Update(float DeltaSeconds)
 
 void UpdateSkeleton()
 {
-    GetMatrixFromTransform(g_skeleton->joint_to_world_transforms[0], g_skeleton->joints[0].local_to_parent);    
+    GetMatrixFromTransform(g_skeleton->joint_to_world_transforms[0], g_skeleton->joints[0].local_to_parent);
     g_skeleton->world_to_joint_transforms[0] = g_skeleton->joint_to_world_transforms[0].GetInverse();
 
     for (uint8_t i = 1; i < g_skeleton->num_joints; ++i)
@@ -679,17 +684,7 @@ void UpdateSkeleton()
     if (g_fPressed)
     {
         g_fPressed = false;
-
-        // Prepare FABRIK parameters
-        engine::animation::FABRIKParams params;
-        params.target = g_targetTransform.position_;
-        params.skeleton = g_skeleton;
-        params.root_joint_index = 0;
-        params.end_joint_index = g_skeleton->num_joints - 1;
-        params.solved_joints = g_solvedJoints;
-
-        // Solve
-        engine::animation::FABRIK(params);
+		SolveFABRIK();
     }
 }
 
@@ -700,7 +695,6 @@ void UpdateJointTransforms(const uint8_t i_jointIndex)
     // Get local to parent transformation matrix
     cy::Matrix4f local_to_parent;
     GetMatrixFromTransform(local_to_parent, g_skeleton->joints[i_jointIndex].local_to_parent);
-    local_to_parent.AddTrans(jointOffset);
 
     // Get parent to world transformation matrix
     const uint8_t& parent_index = g_skeleton->joints[i_jointIndex].parent_index;
@@ -709,6 +703,27 @@ void UpdateJointTransforms(const uint8_t i_jointIndex)
     // Set local to world transformation matrix
     g_skeleton->joint_to_world_transforms[i_jointIndex] = parent_to_world * local_to_parent;
     g_skeleton->world_to_joint_transforms[i_jointIndex] = g_skeleton->joint_to_world_transforms[i_jointIndex].GetInverse();
+}
+
+void SolveFABRIK()
+{
+	// Update world positions of all joints
+	for (uint16_t i = 0; i < g_skeleton->num_joints; ++i)
+	{
+		const cy::Point3f joint_trans = g_skeleton->joint_to_world_transforms[i].GetTrans();
+		g_solvedJoints[i].set(joint_trans.x, joint_trans.y, joint_trans.z);
+	}
+
+	// Prepare FABRIK parameters
+	engine::animation::FABRIKParams params;
+	params.target = g_targetTransform.position_;
+	params.skeleton = g_skeleton;
+	params.root_joint_index = 0;
+	params.end_joint_index = g_skeleton->num_joints - 1;
+	params.solved_joints = g_solvedJoints;
+
+	// Solve
+	engine::animation::FABRIK(params);
 }
 
 void GetMatrixFromTransform(cy::Matrix4f& o_matrix, const engine::math::Transform& i_transform)
