@@ -13,25 +13,31 @@ void FABRIK(const FABRIKParams& i_params)
 {
     const float chain_length = CalculateChainLength(i_params.skeleton, i_params.root_joint_index, i_params.end_joint_index);
 
-    const cy::Point3f root_world_space_trans = i_params.skeleton->joint_to_world_transforms[i_params.root_joint_index].GetTrans();
+    const cy::Point3f root_world_space_trans = i_params.skeleton->local_to_world_transforms[i_params.root_joint_index].GetTrans();
     const engine::math::Vec3D root_world_space(root_world_space_trans.x, root_world_space_trans.y, root_world_space_trans.z);
     const engine::math::Vec3D root_to_target_world_space = i_params.target - engine::math::Vec3D(root_world_space_trans.x, root_world_space_trans.y, root_world_space_trans.z);
 
     // Is the target within reach?
     if (root_to_target_world_space.LengthSquared() > chain_length * chain_length)
     {
-        //// When the target is out of reach,
-        //// we simply stretch the chain from root to target
+        // When the target is out of reach,
+        // we simply stretch the chain from root to target
         //for (uint8_t i = 0; i < i_params.iterations / 2; ++i)
         //{
         //    for (uint16_t i = i_params.root_joint_index + 1; i <= i_params.end_joint_index; ++i)
         //    {
-        //        const engine::math::Vec3D root_to_target_joint_space = i_params.skeleton->world_to_joint_transforms[i] * root_to_target_world_space;
+        //        const engine::math::Vec3D root_to_target_joint_space = i_params.skeleton->world_to_local_transforms[i] * root_to_target_world_space;
         //        const engine::math::Vec3D root_to_target_joint_space_normalized = root_to_target_joint_space.Normalize();
 
         //        i_params.skeleton->joints[i].local_to_parent.position_ = root_to_target_joint_space_normalized * i_params.skeleton->bone_length;
         //    }
         //}
+
+        const engine::math::Vec3D root_to_target_world_space_normalized = root_to_target_world_space.Normalize();
+        for (uint16_t i = i_params.root_joint_index + 1; i <= i_params.end_joint_index; ++i)
+        {
+            i_params.solved_joints[i] = i_params.solved_joints[i_params.skeleton->joints[i].parent_index] + root_to_target_world_space_normalized * i_params.skeleton->bone_length;
+        }
     }
     else
     {
@@ -40,6 +46,11 @@ void FABRIK(const FABRIKParams& i_params)
         // or we run out of iterations
         for (uint8_t i = 0; i < i_params.iterations; ++i)
         {
+            if ((i_params.solved_joints[i_params.end_joint_index] - i_params.target).LengthSquared() < i_params.tolerance)
+            {
+                break;
+            }
+
             LOG("Iteration-%d", i);
             
             SolveForward(i_params);
@@ -83,7 +94,7 @@ void SolveBackward(const FABRIKParams& i_params)
     uint16_t joint_index = i_params.root_joint_index;
     uint16_t child_index = joint_index + 1;
 
-    const cy::Point3f joint_trans = i_params.skeleton->joint_to_world_transforms[joint_index].GetTrans();
+    const cy::Point3f joint_trans = i_params.skeleton->local_to_world_transforms[joint_index].GetTrans();
     i_params.solved_joints[joint_index].set(joint_trans.x, joint_trans.y, joint_trans.z);
 
     // Keep going till we reach the end
@@ -108,9 +119,9 @@ void UpdateRotations(const FABRIKParams& i_params)
     while (joint_index != i_params.root_joint_index)
     {
         // Calculate parent to joint direction before solving
-        const cy::Point3f joint_trans = i_params.skeleton->joint_to_world_transforms[joint_index].GetTrans();
+        const cy::Point3f joint_trans = i_params.skeleton->local_to_world_transforms[joint_index].GetTrans();
         const engine::math::Vec3D joint_world_space(joint_trans.x, joint_trans.y, joint_trans.z);
-        const cy::Point3f parent_trans = i_params.skeleton->joint_to_world_transforms[parent_index].GetTrans();
+        const cy::Point3f parent_trans = i_params.skeleton->local_to_world_transforms[parent_index].GetTrans();
         const engine::math::Vec3D parent_world_space(parent_trans.x, parent_trans.y, parent_trans.z);
         engine::math::Vec3D parent_to_joint_before_solving = joint_world_space - parent_world_space;
         parent_to_joint_before_solving.Normalize();
@@ -121,7 +132,9 @@ void UpdateRotations(const FABRIKParams& i_params)
 
         // Calculate rotation from before to after
         engine::math::Quaternion rotation_world_space = engine::math::Quaternion::GetShortestRotation(parent_to_joint_before_solving, parent_to_joint_after_solving);
-        i_params.skeleton->joints[parent_index].local_to_parent.rotation_ = rotation_world_space * i_params.skeleton->joints[parent_index].local_to_parent.rotation_;
+        //i_params.skeleton->joints[parent_index].local_to_parent.rotation_ = rotation_world_space * i_params.skeleton->joints[parent_index].local_to_parent.rotation_;
+
+        i_params.skeleton->joints[parent_index].local_to_parent.rotation_ = i_params.skeleton->world_to_local_rotations[parent_index] * rotation_world_space;
 
         // Update joint indices
         joint_index = parent_index;

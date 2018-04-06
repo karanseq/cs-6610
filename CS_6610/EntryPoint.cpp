@@ -129,7 +129,8 @@ void Render();
 // Update functions
 void Update(float DeltaSeconds);
 void UpdateSkeleton();
-void UpdateJointTransforms(const uint8_t i_jointIndex);
+void UpdateRoot();
+void UpdateJoint(const uint8_t i_jointIndex);
 
 // Other functions
 void SolveFABRIK();
@@ -370,10 +371,10 @@ void InitSkeleton()
     // Allocate joints
     g_skeleton->num_joints = num_joints;
     g_skeleton->joints = new engine::animation::Joint[num_joints];
-    g_skeleton->joint_to_world_transforms = new cy::Matrix4f[num_joints];
-    g_skeleton->world_to_joint_transforms = new cy::Matrix4f[num_joints];
-    g_skeleton->joint_to_world_rotations = new engine::math::Quaternion[num_joints];
-    g_skeleton->world_to_joint_rotations = new engine::math::Quaternion[num_joints];
+    g_skeleton->local_to_world_transforms = new cy::Matrix4f[num_joints];
+    g_skeleton->world_to_local_transforms = new cy::Matrix4f[num_joints];
+    g_skeleton->local_to_world_rotations = new engine::math::Quaternion[num_joints];
+    g_skeleton->world_to_local_rotations = new engine::math::Quaternion[num_joints];
     g_solvedJoints = new engine::math::Vec3D[num_joints];
 
     // Initialize the parent indices
@@ -430,8 +431,8 @@ void InitSkeleton()
     // Allocate joints
     g_skeleton->num_joints = num_joints;
     g_skeleton->joints = new engine::animation::Joint[num_joints];
-    g_skeleton->joint_to_world_transforms = new cy::Matrix4f[num_joints];
-    g_skeleton->world_to_joint_transforms = new cy::Matrix4f[num_joints];
+    g_skeleton->local_to_world_transforms = new cy::Matrix4f[num_joints];
+    g_skeleton->world_to_local_transforms = new cy::Matrix4f[num_joints];
 
     // Root
     g_skeleton->joints[PELVIS].local_to_parent.position_.y_ = 3 * bone_length;
@@ -484,9 +485,11 @@ void InitSkeleton()
 
 void InitSkeletonTransforms()
 {
+    // Root
     g_skeleton->joints[0].local_to_parent.rotation_ = engine::math::Quaternion::FORWARD * engine::math::Quaternion::FORWARD;
     g_skeleton->joints[0].local_to_parent.position_ = engine::math::Vec3D::ZERO;
 
+    // Chain
     for (uint16_t i = 1; i < g_skeleton->num_joints; ++i)
     {
         g_skeleton->joints[i].local_to_parent.rotation_ = engine::math::Quaternion::FORWARD * engine::math::Quaternion::FORWARD;
@@ -586,7 +589,7 @@ void Render()
 
 void Update(float DeltaSeconds)
 {
-    UpdateSkeleton();
+    bool mustUpdateSkeleton = false;
 
     static constexpr float decrement = 0.1f;
     static float mouseZ = 0.0f;
@@ -613,6 +616,8 @@ void Update(float DeltaSeconds)
                 engine::math::Quaternion& jointRotation = g_skeleton->joints[g_selectedJoint].local_to_parent.rotation_;
                 jointRotation = roll * roll * jointRotation;
                 jointRotation.Normalize();
+
+                mustUpdateSkeleton = true;
             }
 
             if (abs(deltaMouseY) > 0.0f)
@@ -623,6 +628,8 @@ void Update(float DeltaSeconds)
                 engine::math::Quaternion& jointRotation = g_skeleton->joints[g_selectedJoint].local_to_parent.rotation_;
                 jointRotation = pitch * pitch * jointRotation;
                 jointRotation.Normalize();
+
+                mustUpdateSkeleton = true;
             }
         }
         else
@@ -651,6 +658,7 @@ void Update(float DeltaSeconds)
             engine::math::Vec3D& jointPosition = g_skeleton->joints[g_selectedJoint].local_to_parent.position_;
             jointPosition.x_ += float(deltaMouseX) * -movementDamping;
             jointPosition.y_ += float(deltaMouseY) * -movementDamping;
+            mustUpdateSkeleton = true;
         }
         // Target position
         else if (g_altPressed)
@@ -675,6 +683,26 @@ void Update(float DeltaSeconds)
         g_cameraTransform.position_.z_ += mouseZ;
     }
 
+    // Solve FABRIK
+    if (g_fPressed)
+    {
+        g_fPressed = false;
+        SolveFABRIK();
+    }
+
+    // Reset skeleton
+    if (g_rPressed)
+    {
+        g_rPressed = false;
+        InitSkeletonTransforms();
+        mustUpdateSkeleton = true;
+    }
+
+    if (mustUpdateSkeleton)
+    {
+        UpdateSkeleton();
+    }
+
     g_prevMouseX = g_currMouseX;
     g_prevMouseY = g_currMouseY;
     g_prevMouseZ = g_currMouseZ;
@@ -683,49 +711,61 @@ void Update(float DeltaSeconds)
 
 void UpdateSkeleton()
 {
-    GetMatrixFromTransform(g_skeleton->joint_to_world_transforms[0], g_skeleton->joints[0].local_to_parent);
-    g_skeleton->world_to_joint_transforms[0] = g_skeleton->joint_to_world_transforms[0].GetInverse();
-
+    // Update all the transforms
+    UpdateRoot();
     for (uint8_t i = 1; i < g_skeleton->num_joints; ++i)
     {
-        UpdateJointTransforms(i);
+        UpdateJoint(i);
     }
 
     // Update world positions of all joints
     for (uint16_t i = 0; i < g_skeleton->num_joints; ++i)
     {
-        const cy::Point3f joint_trans = g_skeleton->joint_to_world_transforms[i].GetTrans();
+        const cy::Point3f joint_trans = g_skeleton->local_to_world_transforms[i].GetTrans();
         g_solvedJoints[i].set(joint_trans.x, joint_trans.y, joint_trans.z);
-    }
-
-    if (g_fPressed)
-    {
-        g_fPressed = false;
-        SolveFABRIK();
-    }
-
-    if (g_rPressed)
-    {
-        g_rPressed = false;
-        InitSkeletonTransforms();
     }
 }
 
-void UpdateJointTransforms(const uint8_t i_jointIndex)
+void UpdateRoot()
+{
+    GetMatrixFromTransform(g_skeleton->local_to_world_transforms[0], g_skeleton->joints[0].local_to_parent);
+    g_skeleton->world_to_local_transforms[0] = g_skeleton->local_to_world_transforms[0].GetInverse();
+    g_skeleton->local_to_world_rotations[0] = g_skeleton->joints[0].local_to_parent.rotation_;
+    g_skeleton->world_to_local_rotations[0] = g_skeleton->local_to_world_rotations[0].GetInverse();
+}
+
+void UpdateJoint(const uint8_t i_jointIndex)
 {
     static const cy::Point3f jointOffset(0.0f, g_skeleton->bone_length, 0.0f);
 
-    // Get local to parent transformation matrix
-    cy::Matrix4f local_to_parent;
-    GetMatrixFromTransform(local_to_parent, g_skeleton->joints[i_jointIndex].local_to_parent);
-
-    // Get parent to world transformation matrix
+    // Get the parent's index
     const uint8_t& parent_index = g_skeleton->joints[i_jointIndex].parent_index;
-    cy::Matrix4f& parent_to_world = g_skeleton->joint_to_world_transforms[parent_index];
 
-    // Set local to world transformation matrix
-    g_skeleton->joint_to_world_transforms[i_jointIndex] = parent_to_world * local_to_parent;
-    g_skeleton->world_to_joint_transforms[i_jointIndex] = g_skeleton->joint_to_world_transforms[i_jointIndex].GetInverse();
+    // Update matrices
+    {
+        // Get local to parent transformation matrix
+        cy::Matrix4f local_to_parent_transform;
+        GetMatrixFromTransform(local_to_parent_transform, g_skeleton->joints[i_jointIndex].local_to_parent);
+
+        // Get parent to world transformation matrix
+        cy::Matrix4f& parent_to_world_transform = g_skeleton->local_to_world_transforms[parent_index];
+
+        // Set local to world & world to local transformation matrix
+        g_skeleton->local_to_world_transforms[i_jointIndex] = parent_to_world_transform * local_to_parent_transform;
+        g_skeleton->world_to_local_transforms[i_jointIndex] = g_skeleton->local_to_world_transforms[i_jointIndex].GetInverse();
+    }
+
+    // Update rotations
+    {
+        // Get parent to world rotation
+        const engine::math::Quaternion& parent_to_world_rotation = g_skeleton->local_to_world_rotations[parent_index];
+
+        // Set the local to world & world to local rotations
+        g_skeleton->local_to_world_rotations[i_jointIndex] = parent_to_world_rotation * g_skeleton->joints[i_jointIndex].local_to_parent.rotation_;
+        g_skeleton->local_to_world_rotations[i_jointIndex].Normalize();
+        g_skeleton->world_to_local_rotations[i_jointIndex] = g_skeleton->local_to_world_rotations[i_jointIndex].GetInverse();
+        g_skeleton->world_to_local_rotations[i_jointIndex].Normalize();
+    }
 }
 
 void SolveFABRIK()

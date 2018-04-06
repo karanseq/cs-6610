@@ -29,10 +29,10 @@ struct Joint
 struct Skeleton
 {
     Joint*                      joints = nullptr;
-    cy::Matrix4f*               joint_to_world_transforms = nullptr;
-    cy::Matrix4f*               world_to_joint_transforms = nullptr;
-    engine::math::Quaternion*   joint_to_world_rotations = nullptr;
-    engine::math::Quaternion*   world_to_joint_rotations = nullptr;
+    cy::Matrix4f*               local_to_world_transforms = nullptr;
+    cy::Matrix4f*               world_to_local_transforms = nullptr;
+    engine::math::Quaternion*   local_to_world_rotations = nullptr;
+    engine::math::Quaternion*   world_to_local_rotations = nullptr;
     float                       bone_length = 0.0f;
     uint16_t                    num_joints = 0;
 
