@@ -61,6 +61,7 @@ bool g_rightMouseButtonPressed = false;
 bool g_controlPressed = false;
 bool g_altPressed = false;
 bool g_fPressed = false;
+bool g_rPressed = false;
 int g_currMouseX = 0;
 int g_currMouseY = 0;
 int g_currMouseZ = 0;
@@ -119,6 +120,7 @@ bool BuildShader(cy::GLSLProgram& o_program,
 void InitMeshes();
 void InitCamera();
 void InitSkeleton();
+void InitSkeletonTransforms();
 void InitSkeletonMesh();
 
 // Render functions
@@ -242,6 +244,7 @@ void KeyboardFunc(unsigned char key, int x, int y)
     }
 
     g_fPressed = key == 'f';
+    g_rPressed = key == 'r';
 }
 
 void SpecialFunc(int key, int x, int y)
@@ -358,29 +361,29 @@ void InitSkeleton()
 {
 #if 1
 
-    constexpr uint16_t num_joints = 5;
+    constexpr uint16_t num_joints = 10;
 
     // New skeleton
     g_skeleton = new engine::animation::Skeleton;
-    g_skeleton->bone_length = 5.0f;
+    g_skeleton->bone_length = 3.0f;
 
     // Allocate joints
     g_skeleton->num_joints = num_joints;
     g_skeleton->joints = new engine::animation::Joint[num_joints];
     g_skeleton->joint_to_world_transforms = new cy::Matrix4f[num_joints];
     g_skeleton->world_to_joint_transforms = new cy::Matrix4f[num_joints];
-	g_skeleton->joint_to_world_rotations = new engine::math::Quaternion[num_joints];
-	g_skeleton->world_to_joint_rotations = new engine::math::Quaternion[num_joints];
+    g_skeleton->joint_to_world_rotations = new engine::math::Quaternion[num_joints];
+    g_skeleton->world_to_joint_rotations = new engine::math::Quaternion[num_joints];
     g_solvedJoints = new engine::math::Vec3D[num_joints];
 
-    // Initialize the joints
+    // Initialize the parent indices
     g_skeleton->joints[0].parent_index = 0;
-
     for (uint8_t i = 1; i < num_joints; ++i)
     {
         g_skeleton->joints[i].parent_index = i - 1;
-		g_skeleton->joints[i].local_to_parent.position_.y_ = g_skeleton->bone_length;
     }
+
+    InitSkeletonTransforms();
 
 #else
 
@@ -477,14 +480,18 @@ void InitSkeleton()
 
     UpdateSkeleton();
     InitSkeletonMesh();
+}
 
-    //for (uint16_t i = 0; i < g_skeleton->num_joints; ++i)
-    //{
-    //    LOG("Joint-%d to World Matrix:", i);
-    //    PrintMatrix(g_skeleton->joint_to_world_transforms[i]);
-    //    LOG("World to Joint-%d Matrix:", i);
-    //    PrintMatrix(g_skeleton->world_to_joint_transforms[i]);
-    //}
+void InitSkeletonTransforms()
+{
+    g_skeleton->joints[0].local_to_parent.rotation_ = engine::math::Quaternion::FORWARD * engine::math::Quaternion::FORWARD;
+    g_skeleton->joints[0].local_to_parent.position_ = engine::math::Vec3D::ZERO;
+
+    for (uint16_t i = 1; i < g_skeleton->num_joints; ++i)
+    {
+        g_skeleton->joints[i].local_to_parent.rotation_ = engine::math::Quaternion::FORWARD * engine::math::Quaternion::FORWARD;
+        g_skeleton->joints[i].local_to_parent.position_.set(0.0f, g_skeleton->bone_length, 0.0f);
+    }
 }
 
 void InitSkeletonMesh()
@@ -539,7 +546,10 @@ void Render()
         for (uint8_t i = 0; i < g_skeleton->num_joints; ++i)
         {
             // Set the model transformation
-            g_planeGLProgram.SetUniformMatrix4("g_transform_model", g_skeleton->joint_to_world_transforms[i].data);
+            //g_planeGLProgram.SetUniformMatrix4("g_transform_model", g_skeleton->joint_to_world_transforms[i].data);
+
+            cy::Matrix4f model = cy::Matrix4f::MatrixTrans(cy::Point3f(g_solvedJoints[i].x_, g_solvedJoints[i].y_, g_solvedJoints[i].z_));
+            g_planeGLProgram.SetUniformMatrix4("g_transform_model", model.data);
 
             // Set the color
             if (i == g_selectedJoint)
@@ -681,10 +691,23 @@ void UpdateSkeleton()
         UpdateJointTransforms(i);
     }
 
+    // Update world positions of all joints
+    for (uint16_t i = 0; i < g_skeleton->num_joints; ++i)
+    {
+        const cy::Point3f joint_trans = g_skeleton->joint_to_world_transforms[i].GetTrans();
+        g_solvedJoints[i].set(joint_trans.x, joint_trans.y, joint_trans.z);
+    }
+
     if (g_fPressed)
     {
         g_fPressed = false;
-		SolveFABRIK();
+        SolveFABRIK();
+    }
+
+    if (g_rPressed)
+    {
+        g_rPressed = false;
+        InitSkeletonTransforms();
     }
 }
 
@@ -707,23 +730,19 @@ void UpdateJointTransforms(const uint8_t i_jointIndex)
 
 void SolveFABRIK()
 {
-	// Update world positions of all joints
-	for (uint16_t i = 0; i < g_skeleton->num_joints; ++i)
-	{
-		const cy::Point3f joint_trans = g_skeleton->joint_to_world_transforms[i].GetTrans();
-		g_solvedJoints[i].set(joint_trans.x, joint_trans.y, joint_trans.z);
-	}
+    // Prepare FABRIK parameters
+    engine::animation::FABRIKParams params;
+    params.target = g_targetTransform.position_;
+    params.skeleton = g_skeleton;
+    params.root_joint_index = 0;
+    params.end_joint_index = g_skeleton->num_joints - 1;
+    params.solved_joints = g_solvedJoints;
 
-	// Prepare FABRIK parameters
-	engine::animation::FABRIKParams params;
-	params.target = g_targetTransform.position_;
-	params.skeleton = g_skeleton;
-	params.root_joint_index = 0;
-	params.end_joint_index = g_skeleton->num_joints - 1;
-	params.solved_joints = g_solvedJoints;
+    // Solve
+    engine::animation::FABRIK(params);
 
-	// Solve
-	engine::animation::FABRIK(params);
+    // Apply results of fabrik solver
+    g_solvedJoints = params.solved_joints;
 }
 
 void GetMatrixFromTransform(cy::Matrix4f& o_matrix, const engine::math::Transform& i_transform)
