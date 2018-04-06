@@ -52,6 +52,8 @@ const cy::Point3f YELLOW(1.0f, 1.0f, 0.0f);
 const cy::Point3f WHITE(1.0f, 1.0f, 1.0f);
 const cy::Point3f GREY(0.5f, 0.5f, 0.5f);
 
+constexpr engine::animation::ESkeletonType SKELETON_TYPE = engine::animation::ESkeletonType::SimpleChain;
+
 
 //~====================================================================================================
 // Counters
@@ -96,7 +98,6 @@ std::stringstream g_messageStream;
 
 // Skeleton
 engine::animation::Skeleton* g_skeleton = nullptr;
-engine::math::Vec3D* g_solvedJoints = nullptr;
 
 
 //~====================================================================================================
@@ -360,124 +361,22 @@ void InitCamera()
 
 void InitSkeleton()
 {
-#if 1
-
-    constexpr uint16_t num_joints = 10;
-
-    // New skeleton
-    g_skeleton = new engine::animation::Skeleton;
-    g_skeleton->bone_length = 3.0f;
-
-    // Allocate joints
-    g_skeleton->num_joints = num_joints;
-    g_skeleton->joints = new engine::animation::Joint[num_joints];
-    g_skeleton->local_to_world_transforms = new cy::Matrix4f[num_joints];
-    g_skeleton->world_to_local_transforms = new cy::Matrix4f[num_joints];
-    g_skeleton->local_to_world_rotations = new engine::math::Quaternion[num_joints];
-    g_skeleton->world_to_local_rotations = new engine::math::Quaternion[num_joints];
-    g_solvedJoints = new engine::math::Vec3D[num_joints];
-
-    // Initialize the parent indices
-    g_skeleton->joints[0].parent_index = 0;
-    for (uint8_t i = 1; i < num_joints; ++i)
+    if (SKELETON_TYPE == engine::animation::ESkeletonType::SimpleChain)
     {
-        g_skeleton->joints[i].parent_index = i - 1;
+        g_skeleton = new engine::animation::Skeleton;
+        g_skeleton->num_joints = 10;
+        g_skeleton->bone_length = 3.0f;
+        engine::animation::Skeleton::CreateSkeleton(g_skeleton, engine::animation::ESkeletonType::SimpleChain);
+
+        InitSkeletonTransforms();
     }
-
-    InitSkeletonTransforms();
-
-#else
-
-    //-----------------------
-    // The Skeletal Structure
-    //
-    //            6
-    //            |
-    // 14--10--5--1--4--9--13
-    //            |
-    //            0
-    //          /   \
-    //         3     2
-    //         |     |
-    //         8     7
-    //         |     |
-    //         12    11
-    //
-    //-----------------------
-
-    constexpr uint16_t num_joints = 15;
-    constexpr float bone_length = 5.0f;
-    
-    constexpr uint8_t PELVIS = 0;
-    constexpr uint8_t TORSO = 1;
-    constexpr uint8_t UP_LEFT_LEG = 2;
-    constexpr uint8_t UP_RIGHT_LEG = 3;
-    constexpr uint8_t UP_LEFT_ARM = 4;
-    constexpr uint8_t UP_RIGHT_ARM = 5;
-    constexpr uint8_t HEAD = 6;
-    constexpr uint8_t LOW_LEFT_LEG = 7;
-    constexpr uint8_t LOW_RIGHT_LEG = 8;
-    constexpr uint8_t LOW_LEFT_ARM = 9;
-    constexpr uint8_t LOW_RIGHT_ARM = 10;
-    constexpr uint8_t LEFT_FOOT = 11;
-    constexpr uint8_t RIGHT_FOOT = 12;
-    constexpr uint8_t LEFT_HAND = 13;
-    constexpr uint8_t RIGHT_HAND = 14;
-
-    // New skeleton
-    g_skeleton = new engine::animation::Skeleton;
-    g_skeleton->bone_length = bone_length;
-
-    // Allocate joints
-    g_skeleton->num_joints = num_joints;
-    g_skeleton->joints = new engine::animation::Joint[num_joints];
-    g_skeleton->local_to_world_transforms = new cy::Matrix4f[num_joints];
-    g_skeleton->world_to_local_transforms = new cy::Matrix4f[num_joints];
-
-    // Root
-    g_skeleton->joints[PELVIS].local_to_parent.position_.y_ = 3 * bone_length;
-
-    // Spine
-    g_skeleton->joints[TORSO].parent_index = PELVIS;
-    g_skeleton->joints[TORSO].local_to_parent.position_.y_ = bone_length;
-    g_skeleton->joints[HEAD].parent_index = TORSO;
-    g_skeleton->joints[HEAD].local_to_parent.position_.y_ = bone_length;
-
-    // Left leg
-    g_skeleton->joints[UP_LEFT_LEG].parent_index = PELVIS;
-    g_skeleton->joints[UP_LEFT_LEG].local_to_parent.position_.x_ = 0.75f * bone_length;
-    g_skeleton->joints[UP_LEFT_LEG].local_to_parent.position_.y_ = -bone_length;
-    g_skeleton->joints[LOW_LEFT_LEG].parent_index = UP_LEFT_LEG;
-    g_skeleton->joints[LOW_LEFT_LEG].local_to_parent.position_.y_ = -bone_length;
-    g_skeleton->joints[LEFT_FOOT].parent_index = LOW_LEFT_LEG;
-    g_skeleton->joints[LEFT_FOOT].local_to_parent.position_.y_ = -bone_length;
-    
-    // Right leg
-    g_skeleton->joints[UP_RIGHT_LEG].parent_index = PELVIS;
-    g_skeleton->joints[UP_RIGHT_LEG].local_to_parent.position_.x_ = -0.75f * bone_length;
-    g_skeleton->joints[UP_RIGHT_LEG].local_to_parent.position_.y_ = -bone_length;
-    g_skeleton->joints[LOW_RIGHT_LEG].parent_index = UP_RIGHT_LEG;
-    g_skeleton->joints[LOW_RIGHT_LEG].local_to_parent.position_.y_ = -bone_length;
-    g_skeleton->joints[RIGHT_FOOT].parent_index = LOW_RIGHT_LEG;
-    g_skeleton->joints[RIGHT_FOOT].local_to_parent.position_.y_ = -bone_length;
-
-    // Left arm
-    g_skeleton->joints[UP_LEFT_ARM].parent_index = TORSO;
-    g_skeleton->joints[UP_LEFT_ARM].local_to_parent.position_.x_ = bone_length;
-    g_skeleton->joints[LOW_LEFT_ARM].parent_index = UP_LEFT_ARM;
-    g_skeleton->joints[LOW_LEFT_ARM].local_to_parent.position_.x_ = bone_length;
-    g_skeleton->joints[LEFT_HAND].parent_index = LOW_LEFT_ARM;
-    g_skeleton->joints[LEFT_HAND].local_to_parent.position_.x_ = bone_length;
-
-    // Right arm
-    g_skeleton->joints[UP_RIGHT_ARM].parent_index = TORSO;
-    g_skeleton->joints[UP_RIGHT_ARM].local_to_parent.position_.x_ = -bone_length;
-    g_skeleton->joints[LOW_RIGHT_ARM].parent_index = UP_RIGHT_ARM;
-    g_skeleton->joints[LOW_RIGHT_ARM].local_to_parent.position_.x_ = -bone_length;
-    g_skeleton->joints[RIGHT_HAND].parent_index = LOW_RIGHT_ARM;
-    g_skeleton->joints[RIGHT_HAND].local_to_parent.position_.x_ = -bone_length;
-
-#endif
+    else
+    {
+        g_skeleton = new engine::animation::Skeleton;
+        g_skeleton->num_joints = 15;
+        g_skeleton->bone_length = 5.0f;
+        engine::animation::Skeleton::CreateSkeleton(g_skeleton, engine::animation::ESkeletonType::Humanoid);
+    }
 
     UpdateSkeleton();
     InitSkeletonMesh();
@@ -485,15 +384,13 @@ void InitSkeleton()
 
 void InitSkeletonTransforms()
 {
-    // Root
-    g_skeleton->joints[0].local_to_parent.rotation_ = engine::math::Quaternion::FORWARD * engine::math::Quaternion::FORWARD;
-    g_skeleton->joints[0].local_to_parent.position_ = engine::math::Vec3D::ZERO;
-
-    // Chain
-    for (uint16_t i = 1; i < g_skeleton->num_joints; ++i)
+    if (SKELETON_TYPE == engine::animation::ESkeletonType::SimpleChain)
     {
-        g_skeleton->joints[i].local_to_parent.rotation_ = engine::math::Quaternion::FORWARD * engine::math::Quaternion::FORWARD;
-        g_skeleton->joints[i].local_to_parent.position_.set(0.0f, g_skeleton->bone_length, 0.0f);
+        engine::animation::Skeleton::InitSimpleChain(g_skeleton);
+    }
+    else if (SKELETON_TYPE == engine::animation::ESkeletonType::Humanoid)
+    {
+        engine::animation::Skeleton::InitHumanoid(g_skeleton);
     }
 }
 
@@ -551,7 +448,8 @@ void Render()
             // Set the model transformation
             //g_planeGLProgram.SetUniformMatrix4("g_transform_model", g_skeleton->joint_to_world_transforms[i].data);
 
-            cy::Matrix4f model = cy::Matrix4f::MatrixTrans(cy::Point3f(g_solvedJoints[i].x_, g_solvedJoints[i].y_, g_solvedJoints[i].z_));
+            const engine::math::Vec3D& joint_world_position = g_skeleton->solved_joints[i];
+            cy::Matrix4f model = cy::Matrix4f::MatrixTrans(cy::Point3f(joint_world_position.x_, joint_world_position.y_, joint_world_position.z_));
             g_planeGLProgram.SetUniformMatrix4("g_transform_model", model.data);
 
             // Set the color
@@ -676,7 +574,7 @@ void Update(float DeltaSeconds)
 
     if (g_altPressed)
     {
-        g_targetTransform.position_.z_ += mouseZ;
+        g_targetTransform.position_.z_ += mouseZ * 0.25f;
     }
     else
     {
@@ -722,7 +620,7 @@ void UpdateSkeleton()
     for (uint16_t i = 0; i < g_skeleton->num_joints; ++i)
     {
         const cy::Point3f joint_trans = g_skeleton->local_to_world_transforms[i].GetTrans();
-        g_solvedJoints[i].set(joint_trans.x, joint_trans.y, joint_trans.z);
+        g_skeleton->solved_joints[i].set(joint_trans.x, joint_trans.y, joint_trans.z);
     }
 }
 
@@ -774,15 +672,15 @@ void SolveFABRIK()
     engine::animation::FABRIKParams params;
     params.target = g_targetTransform.position_;
     params.skeleton = g_skeleton;
-    params.root_joint_index = 0;
-    params.end_joint_index = g_skeleton->num_joints - 1;
-    params.solved_joints = g_solvedJoints;
+
+    if (SKELETON_TYPE == engine::animation::ESkeletonType::SimpleChain)
+    {
+        params.root_joint_index = 0;
+        params.end_joint_index = g_skeleton->num_joints - 1;
+    }
 
     // Solve
     engine::animation::FABRIK(params);
-
-    // Apply results of fabrik solver
-    g_solvedJoints = params.solved_joints;
 }
 
 void GetMatrixFromTransform(cy::Matrix4f& o_matrix, const engine::math::Transform& i_transform)

@@ -11,6 +11,13 @@ namespace animation {
 
 void FABRIK(const FABRIKParams& i_params)
 {
+    if (i_params.skeleton == nullptr ||
+        i_params.root_joint_index == i_params.end_joint_index ||
+        i_params.iterations == 0)
+    {
+        return;
+    }
+
     const float chain_length = CalculateChainLength(i_params.skeleton, i_params.root_joint_index, i_params.end_joint_index);
 
     const cy::Point3f root_world_space_trans = i_params.skeleton->local_to_world_transforms[i_params.root_joint_index].GetTrans();
@@ -36,7 +43,7 @@ void FABRIK(const FABRIKParams& i_params)
         const engine::math::Vec3D root_to_target_world_space_normalized = root_to_target_world_space.Normalize();
         for (uint16_t i = i_params.root_joint_index + 1; i <= i_params.end_joint_index; ++i)
         {
-            i_params.solved_joints[i] = i_params.solved_joints[i_params.skeleton->joints[i].parent_index] + root_to_target_world_space_normalized * i_params.skeleton->bone_length;
+            i_params.skeleton->solved_joints[i] = i_params.skeleton->solved_joints[i_params.skeleton->joints[i].parent_index] + root_to_target_world_space_normalized * i_params.skeleton->bone_length;
         }
     }
     else
@@ -46,7 +53,7 @@ void FABRIK(const FABRIKParams& i_params)
         // or we run out of iterations
         for (uint8_t i = 0; i < i_params.iterations; ++i)
         {
-            if ((i_params.solved_joints[i_params.end_joint_index] - i_params.target).LengthSquared() < i_params.tolerance)
+            if ((i_params.skeleton->solved_joints[i_params.end_joint_index] - i_params.target).LengthSquared() < i_params.tolerance)
             {
                 break;
             }
@@ -73,15 +80,15 @@ void SolveForward(const FABRIKParams& i_params)
     uint16_t joint_index = i_params.end_joint_index;
     uint16_t parent_index = i_params.skeleton->joints[i_params.end_joint_index].parent_index;
     
-    i_params.solved_joints[joint_index] = i_params.target;
+    i_params.skeleton->solved_joints[joint_index] = i_params.target;
 
     // Keep going till we reach the root of the chain
     while (joint_index != i_params.root_joint_index)
     {
-        const engine::math::Vec3D joint_to_parent = i_params.solved_joints[parent_index] - i_params.solved_joints[joint_index];
+        const engine::math::Vec3D joint_to_parent = i_params.skeleton->solved_joints[parent_index] - i_params.skeleton->solved_joints[joint_index];
         const engine::math::Vec3D joint_to_parent_normalized = joint_to_parent.Normalize();
 
-        i_params.solved_joints[parent_index] = i_params.solved_joints[joint_index] + (joint_to_parent_normalized * i_params.skeleton->bone_length);
+        i_params.skeleton->solved_joints[parent_index] = i_params.skeleton->solved_joints[joint_index] + (joint_to_parent_normalized * i_params.skeleton->bone_length);
 
         // Update joint indices
         joint_index = parent_index;
@@ -92,22 +99,22 @@ void SolveForward(const FABRIKParams& i_params)
 void SolveBackward(const FABRIKParams& i_params)
 {
     uint16_t joint_index = i_params.root_joint_index;
-    uint16_t child_index = joint_index + 1;
+    uint16_t child_index = i_params.skeleton->joints[joint_index].child_index;
 
     const cy::Point3f joint_trans = i_params.skeleton->local_to_world_transforms[joint_index].GetTrans();
-    i_params.solved_joints[joint_index].set(joint_trans.x, joint_trans.y, joint_trans.z);
+    i_params.skeleton->solved_joints[joint_index].set(joint_trans.x, joint_trans.y, joint_trans.z);
 
     // Keep going till we reach the end
     while (child_index != i_params.end_joint_index)
     {
-        const engine::math::Vec3D joint_to_child = i_params.solved_joints[child_index] - i_params.solved_joints[joint_index];
+        const engine::math::Vec3D joint_to_child = i_params.skeleton->solved_joints[child_index] - i_params.skeleton->solved_joints[joint_index];
         const engine::math::Vec3D joint_to_child_normalized = joint_to_child.Normalize();
 
-        i_params.solved_joints[child_index] = i_params.solved_joints[joint_index] + (joint_to_child_normalized * i_params.skeleton->bone_length);
+        i_params.skeleton->solved_joints[child_index] = i_params.skeleton->solved_joints[joint_index] + (joint_to_child_normalized * i_params.skeleton->bone_length);
 
         // Update joint indices
         joint_index = child_index;
-        child_index = joint_index + 1;
+        child_index = i_params.skeleton->joints[joint_index].child_index;
     }
 }
 
@@ -127,7 +134,7 @@ void UpdateRotations(const FABRIKParams& i_params)
         parent_to_joint_before_solving.Normalize();
 
         // Calculate parent to joint direction after solving
-        engine::math::Vec3D parent_to_joint_after_solving = i_params.solved_joints[joint_index] - i_params.solved_joints[parent_index];
+        engine::math::Vec3D parent_to_joint_after_solving = i_params.skeleton->solved_joints[joint_index] - i_params.skeleton->solved_joints[parent_index];
         parent_to_joint_after_solving.Normalize();
 
         // Calculate rotation from before to after
@@ -170,7 +177,7 @@ void PrintSolvedJoints(const FABRIKParams& i_params)
 {
     for (uint16_t i = 0; i < i_params.skeleton->num_joints; ++i)
     {
-        const engine::math::Vec3D& position = i_params.solved_joints[i];
+        const engine::math::Vec3D& position = i_params.skeleton->solved_joints[i];
         LOG("Joint-%d  Position:%f, %f, %f", i, position.x_, position.y_, position.z_);
     }
 }

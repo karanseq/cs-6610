@@ -20,7 +20,6 @@ struct FABRIKParams
     uint16_t                            root_joint_index = 0;
     uint16_t                            end_joint_index = 0;
     uint8_t                             iterations = 25;
-    engine::math::Vec3D*                solved_joints = nullptr;
     float                               tolerance = 0.01f;
 
 }; // struct FABRIKParams
