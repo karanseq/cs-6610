@@ -84,22 +84,6 @@ void Skeleton::InitHumanoid(Skeleton*& io_skeleton)
     //
     //-----------------------
 
-    constexpr uint8_t PELVIS = 0;
-    constexpr uint8_t TORSO = 1;
-    constexpr uint8_t UP_LEFT_LEG = 2;
-    constexpr uint8_t UP_RIGHT_LEG = 3;
-    constexpr uint8_t UP_LEFT_ARM = 4;
-    constexpr uint8_t UP_RIGHT_ARM = 5;
-    constexpr uint8_t HEAD = 6;
-    constexpr uint8_t LOW_LEFT_LEG = 7;
-    constexpr uint8_t LOW_RIGHT_LEG = 8;
-    constexpr uint8_t LOW_LEFT_ARM = 9;
-    constexpr uint8_t LOW_RIGHT_ARM = 10;
-    constexpr uint8_t LEFT_FOOT = 11;
-    constexpr uint8_t RIGHT_FOOT = 12;
-    constexpr uint8_t LEFT_HAND = 13;
-    constexpr uint8_t RIGHT_HAND = 14;
-
     // Root
     io_skeleton->joints[PELVIS].local_to_parent.position_.y_ = 3 * io_skeleton->bone_length;
 

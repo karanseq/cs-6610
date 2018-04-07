@@ -52,6 +52,22 @@ struct Skeleton
     static void InitHumanoid(Skeleton*& io_skeleton);
     static void InitPalm(Skeleton*& io_skeleton);
 
+    static constexpr uint8_t PELVIS = 0;
+    static constexpr uint8_t TORSO = 1;
+    static constexpr uint8_t UP_LEFT_LEG = 2;
+    static constexpr uint8_t UP_RIGHT_LEG = 3;
+    static constexpr uint8_t UP_LEFT_ARM = 4;
+    static constexpr uint8_t UP_RIGHT_ARM = 5;
+    static constexpr uint8_t HEAD = 6;
+    static constexpr uint8_t LOW_LEFT_LEG = 7;
+    static constexpr uint8_t LOW_RIGHT_LEG = 8;
+    static constexpr uint8_t LOW_LEFT_ARM = 9;
+    static constexpr uint8_t LOW_RIGHT_ARM = 10;
+    static constexpr uint8_t LEFT_FOOT = 11;
+    static constexpr uint8_t RIGHT_FOOT = 12;
+    static constexpr uint8_t LEFT_HAND = 13;
+    static constexpr uint8_t RIGHT_HAND = 14;
+
 }; // struct Skeleton
 
 } // namespace animation

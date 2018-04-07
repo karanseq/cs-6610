@@ -71,6 +71,7 @@ int g_prevMouseX = 0;
 int g_prevMouseY = 0;
 int g_prevMouseZ = 0;
 uint8_t g_selectedJoint = 0;
+uint8_t g_selectedEndEffector = 0;
 
 
 //~====================================================================================================
@@ -236,13 +237,17 @@ void KeyboardFunc(unsigned char key, int x, int y)
     {
         glutLeaveMainLoop();
     }
-    else if (key == 'w')
+    else if (key == 'q')
     {
         g_selectedJoint = g_selectedJoint < g_skeleton->num_joints - 1 ? g_selectedJoint + 1 : 0;
     }
-    else if (key == 's')
+    else if (key == 'w')
     {
         g_selectedJoint = g_selectedJoint == 0 ? g_skeleton->num_joints - 1 : g_selectedJoint - 1;
+    }
+    else if (key == 'e')
+    {
+        g_selectedEndEffector = g_selectedEndEffector <= engine::animation::Skeleton::LEFT_FOOT ? engine::animation::Skeleton::RIGHT_HAND : g_selectedEndEffector - 1;
     }
 
     g_fPressed = key == 'f';
@@ -456,6 +461,10 @@ void Render()
             if (i == g_selectedJoint)
             {
                 g_planeGLProgram.SetUniform("g_color", 0.7f, 0.7f, 0.0f);
+            }
+            else if (i == g_selectedEndEffector)
+            {
+                g_planeGLProgram.SetUniform("g_color", 0.8f, 0.2f, 0.0f);
             }
             else
             {
@@ -677,6 +686,26 @@ void SolveFABRIK()
     {
         params.root_joint_index = 0;
         params.end_joint_index = g_skeleton->num_joints - 1;
+    }
+    else if (SKELETON_TYPE == engine::animation::ESkeletonType::Humanoid)
+    {
+        if (g_selectedEndEffector == engine::animation::Skeleton::LEFT_FOOT)
+        {
+            params.root_joint_index = engine::animation::Skeleton::UP_LEFT_LEG;
+        }
+        else if (g_selectedEndEffector == engine::animation::Skeleton::RIGHT_FOOT)
+        {
+            params.root_joint_index = engine::animation::Skeleton::UP_RIGHT_LEG;
+        }
+        else if (g_selectedEndEffector == engine::animation::Skeleton::LEFT_HAND)
+        {
+            params.root_joint_index = engine::animation::Skeleton::UP_LEFT_ARM;
+        }
+        else if (g_selectedEndEffector == engine::animation::Skeleton::RIGHT_HAND)
+        {
+            params.root_joint_index = engine::animation::Skeleton::UP_RIGHT_ARM;
+        }
+        params.end_joint_index = g_selectedEndEffector;
     }
 
     // Solve

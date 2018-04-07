@@ -41,9 +41,13 @@ void FABRIK(const FABRIKParams& i_params)
         //}
 
         const engine::math::Vec3D root_to_target_world_space_normalized = root_to_target_world_space.Normalize();
-        for (uint16_t i = i_params.root_joint_index + 1; i <= i_params.end_joint_index; ++i)
+        uint8_t joint_index = i_params.root_joint_index;
+        while (joint_index != i_params.end_joint_index)
         {
-            i_params.skeleton->solved_joints[i] = i_params.skeleton->solved_joints[i_params.skeleton->joints[i].parent_index] + root_to_target_world_space_normalized * i_params.skeleton->bone_length;
+            const uint8_t child_index = i_params.skeleton->joints[joint_index].child_index;
+            i_params.skeleton->solved_joints[child_index] = i_params.skeleton->solved_joints[joint_index] + root_to_target_world_space_normalized * i_params.skeleton->bone_length;
+
+            joint_index = child_index;
         }
     }
     else
