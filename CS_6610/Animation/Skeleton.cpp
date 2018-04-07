@@ -1,7 +1,43 @@
 #include "Skeleton.h"
 
+// Util includes
+#include "Utils/cyMatrix.h"
+
 namespace engine {
 namespace animation {
+
+void Skeleton::UpdateJointTransform(uint8_t i_index)
+{
+    if (i_index == 0)
+    {
+        cy::Matrix4f::GetMatrixFromTransform(local_to_world_transforms[0], joints[0].local_to_parent);
+        world_to_local_transforms[0] = local_to_world_transforms[0].GetInverse();
+    }
+    else if (i_index < num_joints)
+    {
+        // Get the parent's index
+        const uint8_t& parent_index = joints[i_index].parent_index;
+
+        // Update matrices
+        {
+            // Get local to parent transformation matrix
+            cy::Matrix4f local_to_parent_transform;
+            cy::Matrix4f::GetMatrixFromTransform(local_to_parent_transform, joints[i_index].local_to_parent);
+
+            // Get parent to world transformation matrix
+            cy::Matrix4f& parent_to_world_transform = local_to_world_transforms[parent_index];
+
+            // Set local to world & world to local transformation matrix
+            local_to_world_transforms[i_index] = parent_to_world_transform * local_to_parent_transform;
+            world_to_local_transforms[i_index] = local_to_world_transforms[i_index].GetInverse();
+        }
+    }
+
+    // TODO
+    //// Update world positions
+    //const cy::Point3f joint_trans = local_to_world_transforms[i_index].GetTrans();
+    //joints_world_space[i_index].set(joint_trans.x, joint_trans.y, joint_trans.z);
+}
 
 void Skeleton::CreateSkeleton(Skeleton*& io_skeleton, ESkeletonType i_type)
 {
@@ -15,9 +51,7 @@ void Skeleton::CreateSkeleton(Skeleton*& io_skeleton, ESkeletonType i_type)
     io_skeleton->joints = new engine::animation::Joint[io_skeleton->num_joints];
     io_skeleton->local_to_world_transforms = new cy::Matrix4f[io_skeleton->num_joints];
     io_skeleton->world_to_local_transforms = new cy::Matrix4f[io_skeleton->num_joints];
-    io_skeleton->local_to_world_rotations = new engine::math::Quaternion[io_skeleton->num_joints];
-    io_skeleton->world_to_local_rotations = new engine::math::Quaternion[io_skeleton->num_joints];
-    io_skeleton->solved_joints = new engine::math::Vec3D[io_skeleton->num_joints];
+    io_skeleton->joints_world_space = new engine::math::Vec3D[io_skeleton->num_joints];
 
     switch (i_type)
     {

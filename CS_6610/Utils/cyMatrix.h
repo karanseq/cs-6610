@@ -37,6 +37,8 @@
 //-------------------------------------------------------------------------------
 
 #include "cyPoint.h"
+#include "Math/Quaternion.h"
+#include "Math/Transform.h"
 #include "Math/Vec3D.h"
 
 //-------------------------------------------------------------------------------
@@ -731,6 +733,79 @@ public:
     //! Returns the matrix representation of cross product ( a x b )
     static Matrix3 MatrixCrossProd( const Point3<TYPE> &a ) { Matrix3 m; m.SetCrossProd(a); return m; }
 
+    static void GetRotationMatrixFromQuaternion(Matrix3<TYPE>& o_matrix, const engine::math::Quaternion& i_quaternion)
+    {
+        const auto _2x = i_quaternion.x_ + i_quaternion.x_;
+        const auto _2y = i_quaternion.y_ + i_quaternion.y_;
+        const auto _2z = i_quaternion.z_ + i_quaternion.z_;
+        const auto _2xx = i_quaternion.x_ * _2x;
+        const auto _2xy = _2x * i_quaternion.y_;
+        const auto _2xz = _2x * i_quaternion.z_;
+        const auto _2xw = _2x * i_quaternion.w_;
+        const auto _2yy = _2y * i_quaternion.y_;
+        const auto _2yz = _2y * i_quaternion.z_;
+        const auto _2yw = _2y * i_quaternion.w_;
+        const auto _2zz = _2z * i_quaternion.z_;
+        const auto _2zw = _2z * i_quaternion.w_;
+
+        o_matrix.data[0] = 1.0f - _2yy - _2zz;
+        o_matrix.data[3] = _2xy - _2zw;
+        o_matrix.data[6] = _2xz + _2yw;
+
+        o_matrix.data[1] = _2xy + _2zw;
+        o_matrix.data[4] = 1.0f - _2xx - _2zz;
+        o_matrix.data[7] = _2yz - _2xw;
+
+        o_matrix.data[2] = _2xz - _2yw;
+        o_matrix.data[5] = _2yz + _2xw;
+        o_matrix.data[8] = 1.0f - _2xx - _2yy;
+    }
+
+    static void GetQuaternionFromRotationMatrix(engine::math::Quaternion& o_quaternion, const Matrix3<TYPE>& i_matrix)
+    {
+        float t = o_matrix.data[0] + o_matrix.data[4] + o_matrix.data[8];
+
+        if (t > 0.0f)
+        {
+            float invS = 0.5f / sqrtf(1.0f + t);
+
+            x_ = (o_matrix.data[7] - o_matrix.data[5]) * invS;
+            y_ = (o_matrix.data[2] - o_matrix.data[6]) * invS;
+            z_ = (o_matrix.data[3] - o_matrix.data[1]) * invS;
+            w_ = 0.25f / invS;
+        }
+        else
+        {
+            if (o_matrix.data[0] > o_matrix.data[4] && o_matrix.data[0] > o_matrix.data[8])
+            {
+                float invS = 0.5f / sqrtf(1.0f + o_matrix.data[0] - o_matrix.data[4] - o_matrix.data[8]);
+
+                x_ = 0.25f / invS;
+                y_ = (o_matrix.data[1] + o_matrix.data[3]) * invS;
+                z_ = (o_matrix.data[6] + o_matrix.data[2]) * invS;
+                w_ = (o_matrix.data[7] - o_matrix.data[5]) * invS;
+            }
+            else if (o_matrix.data[4] > o_matrix.data[8])
+            {
+                float invS = 0.5f / sqrtf(1.0f + o_matrix.data[4] - o_matrix.data[0] - o_matrix.data[8]);
+
+                x_ = (o_matrix.data[1] + o_matrix.data[3]) * invS;
+                y_ = 0.25f / invS;
+                z_ = (o_matrix.data[5] + o_matrix.data[7]) * invS;
+                w_ = (o_matrix.data[2] - o_matrix.data[6]) * invS;
+            }
+            else
+            {
+                float invS = 0.5f / sqrtf(1.0f + o_matrix.data[8] - o_matrix.data[0] - o_matrix.data[4]);
+
+                x_ = (o_matrix.data[2] + o_matrix.data[6]) * invS;
+                y_ = (o_matrix.data[5] + o_matrix.data[7]) * invS;
+                z_ = 0.25f / invS;
+                w_ = (o_matrix.data[3] - o_matrix.data[1]) * invS;
+            }
+        }
+    }
+
     //////////////////////////////////////////////////////////////////////////
 };
 
@@ -1248,7 +1323,6 @@ public:
     static Matrix34 MatrixScale( const Point3<TYPE> &scale ) { Matrix34 m; m.SetScale(scale); return m; }
     //! Returns a translation matrix with no rotation or scale
     static Matrix34 MatrixTrans( const Point3<TYPE> &move ) { Matrix34 m; m.SetTrans(move); return m; }
-
 
     //////////////////////////////////////////////////////////////////////////
 };
@@ -1931,6 +2005,41 @@ public:
     //! Returns a project matrix with the tangent of the half field of view (tan_fov_2)
     static Matrix4 MatrixPerspectiveTan( TYPE tan_fov_2, TYPE aspect, TYPE znear, TYPE zfar ) { Matrix4 m; m.SetPerspectiveTan(tan_fov_2,aspect,znear,zfar); return m; }
 
+    static void GetMatrixFromTransform(Matrix4<TYPE>& o_matrix, const engine::math::Transform& i_transform)
+    {
+        o_matrix.data[3] = 0.0f;
+        o_matrix.data[7] = 0.0f;
+        o_matrix.data[11] = 0.0f;
+        o_matrix.data[12] = i_transform.position_.x_;
+        o_matrix.data[13] = i_transform.position_.y_;
+        o_matrix.data[14] = i_transform.position_.z_;
+        o_matrix.data[15] = 1.0f;
+
+        const auto _2x = i_transform.rotation_.x_ + i_transform.rotation_.x_;
+        const auto _2y = i_transform.rotation_.y_ + i_transform.rotation_.y_;
+        const auto _2z = i_transform.rotation_.z_ + i_transform.rotation_.z_;
+        const auto _2xx = i_transform.rotation_.x_ * _2x;
+        const auto _2xy = _2x * i_transform.rotation_.y_;
+        const auto _2xz = _2x * i_transform.rotation_.z_;
+        const auto _2xw = _2x * i_transform.rotation_.w_;
+        const auto _2yy = _2y * i_transform.rotation_.y_;
+        const auto _2yz = _2y * i_transform.rotation_.z_;
+        const auto _2yw = _2y * i_transform.rotation_.w_;
+        const auto _2zz = _2z * i_transform.rotation_.z_;
+        const auto _2zw = _2z * i_transform.rotation_.w_;
+
+        o_matrix.data[0] = 1.0f - _2yy - _2zz;
+        o_matrix.data[4] = _2xy - _2zw;
+        o_matrix.data[8] = _2xz + _2yw;
+
+        o_matrix.data[1] = _2xy + _2zw;
+        o_matrix.data[5] = 1.0f - _2xx - _2zz;
+        o_matrix.data[9] = _2yz - _2xw;
+
+        o_matrix.data[2] = _2xz - _2yw;
+        o_matrix.data[6] = _2yz + _2xw;
+        o_matrix.data[10] = 1.0f - _2xx - _2yy;
+    }
 
     //////////////////////////////////////////////////////////////////////////
 };

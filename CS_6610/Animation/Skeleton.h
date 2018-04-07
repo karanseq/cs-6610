@@ -40,11 +40,11 @@ struct Skeleton
     Joint*                      joints = nullptr;
     cy::Matrix4f*               local_to_world_transforms = nullptr;
     cy::Matrix4f*               world_to_local_transforms = nullptr;
-    engine::math::Vec3D*        solved_joints = nullptr;
-    engine::math::Quaternion*   local_to_world_rotations = nullptr;
-    engine::math::Quaternion*   world_to_local_rotations = nullptr;
+    engine::math::Vec3D*        joints_world_space = nullptr;
     float                       bone_length = 0.0f;
     uint8_t                     num_joints = 0;
+
+    void UpdateJointTransform(uint8_t i_index);
 
     static void CreateSkeleton(Skeleton*& io_skeleton, ESkeletonType i_type);
 
