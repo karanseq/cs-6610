@@ -366,22 +366,20 @@ void InitCamera()
 
 void InitSkeleton()
 {
+    g_skeleton = new engine::animation::Skeleton;
+
     if (SKELETON_TYPE == engine::animation::ESkeletonType::SimpleChain)
     {
-        g_skeleton = new engine::animation::Skeleton;
         g_skeleton->num_joints = 10;
         g_skeleton->bone_length = 3.0f;
-        engine::animation::Skeleton::CreateSkeleton(g_skeleton, engine::animation::ESkeletonType::SimpleChain);
-
-        InitSkeletonTransforms();
     }
-    else
+    else if (SKELETON_TYPE == engine::animation::ESkeletonType::Humanoid)
     {
-        g_skeleton = new engine::animation::Skeleton;
         g_skeleton->num_joints = 15;
         g_skeleton->bone_length = 5.0f;
-        engine::animation::Skeleton::CreateSkeleton(g_skeleton, engine::animation::ESkeletonType::Humanoid);
     }
+
+    engine::animation::Skeleton::CreateSkeleton(g_skeleton, SKELETON_TYPE);
 
     UpdateSkeleton();
     InitSkeletonMesh();
@@ -404,7 +402,7 @@ void InitSkeletonMesh()
     constexpr float halfWidth = 0.5f;
 
     g_skeletonBufferIds = static_cast<BufferIdGroup*>(malloc(sizeof(BufferIdGroup) * g_skeleton->num_joints));
-    for (uint16_t i = 0; i < g_skeleton->num_joints; ++i)
+    for (uint8_t i = 0; i < g_skeleton->num_joints; ++i)
     {
         MeshHelpers::CreateBoxMesh(g_skeletonBufferIds[i], halfWidth);
     }
@@ -626,7 +624,7 @@ void UpdateSkeleton()
     }
 
     // Update world positions of all joints
-    for (uint16_t i = 0; i < g_skeleton->num_joints; ++i)
+    for (uint8_t i = 0; i < g_skeleton->num_joints; ++i)
     {
         const cy::Point3f joint_trans = g_skeleton->local_to_world_transforms[i].GetTrans();
         g_skeleton->solved_joints[i].set(joint_trans.x, joint_trans.y, joint_trans.z);

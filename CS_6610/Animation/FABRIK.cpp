@@ -81,8 +81,8 @@ void FABRIK(const FABRIKParams& i_params)
 
 void SolveForward(const FABRIKParams& i_params)
 {
-    uint16_t joint_index = i_params.end_joint_index;
-    uint16_t parent_index = i_params.skeleton->joints[i_params.end_joint_index].parent_index;
+    uint8_t joint_index = i_params.end_joint_index;
+    uint8_t parent_index = i_params.skeleton->joints[i_params.end_joint_index].parent_index;
     
     i_params.skeleton->solved_joints[joint_index] = i_params.target;
 
@@ -102,8 +102,8 @@ void SolveForward(const FABRIKParams& i_params)
 
 void SolveBackward(const FABRIKParams& i_params)
 {
-    uint16_t joint_index = i_params.root_joint_index;
-    uint16_t child_index = i_params.skeleton->joints[joint_index].child_index;
+    uint8_t joint_index = i_params.root_joint_index;
+    uint8_t child_index = i_params.skeleton->joints[joint_index].child_index;
 
     const cy::Point3f joint_trans = i_params.skeleton->local_to_world_transforms[joint_index].GetTrans();
     i_params.skeleton->solved_joints[joint_index].set(joint_trans.x, joint_trans.y, joint_trans.z);
@@ -124,8 +124,8 @@ void SolveBackward(const FABRIKParams& i_params)
 
 void UpdateRotations(const FABRIKParams& i_params)
 {
-    uint16_t joint_index = i_params.end_joint_index;
-    uint16_t parent_index = i_params.skeleton->joints[i_params.end_joint_index].parent_index;
+    uint8_t joint_index = i_params.end_joint_index;
+    uint8_t parent_index = i_params.skeleton->joints[i_params.end_joint_index].parent_index;
 
     while (joint_index != i_params.root_joint_index)
     {
@@ -164,8 +164,8 @@ float CalculateChainLength(const Skeleton* i_skeleton, uint16_t i_rootJointIndex
 
     float chain_length = i_skeleton->bone_length;
 
-    uint16_t parent_joint_index = i_skeleton->joints[i_endJointIndex].parent_index;
-    uint16_t counter = i_skeleton->num_joints;
+    uint8_t parent_joint_index = i_skeleton->joints[i_endJointIndex].parent_index;
+    uint8_t counter = i_skeleton->num_joints;
     while (parent_joint_index != i_rootJointIndex &&
         counter > 0)
     {
@@ -179,7 +179,7 @@ float CalculateChainLength(const Skeleton* i_skeleton, uint16_t i_rootJointIndex
 
 void PrintSolvedJoints(const FABRIKParams& i_params)
 {
-    for (uint16_t i = 0; i < i_params.skeleton->num_joints; ++i)
+    for (uint8_t i = 0; i < i_params.skeleton->num_joints; ++i)
     {
         const engine::math::Vec3D& position = i_params.skeleton->solved_joints[i];
         LOG("Joint-%d  Position:%f, %f, %f", i, position.x_, position.y_, position.z_);

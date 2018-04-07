@@ -17,8 +17,8 @@ struct FABRIKParams
 {
     engine::math::Vec3D                 target = engine::math::Vec3D::ZERO;
     Skeleton*                           skeleton = nullptr;
-    uint16_t                            root_joint_index = 0;
-    uint16_t                            end_joint_index = 0;
+    uint8_t                             root_joint_index = 0;
+    uint8_t                             end_joint_index = 0;
     uint8_t                             iterations = 25;
     float                               tolerance = 0.01f;
 

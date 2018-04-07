@@ -44,7 +44,7 @@ struct Skeleton
     engine::math::Quaternion*   local_to_world_rotations = nullptr;
     engine::math::Quaternion*   world_to_local_rotations = nullptr;
     float                       bone_length = 0.0f;
-    uint16_t                    num_joints = 0;
+    uint8_t                     num_joints = 0;
 
     static void CreateSkeleton(Skeleton*& io_skeleton, ESkeletonType i_type);
 
