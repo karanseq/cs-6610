@@ -74,9 +74,9 @@ void FABRIK(const FABRIKParams& i_params)
 
             LOG("----------------------------------------------------------------------");
         }
-
-        UpdateRotations(i_params);
     }
+
+    UpdateRotations(i_params);
 }
 
 void SolveForward(const FABRIKParams& i_params)
@@ -174,11 +174,13 @@ void UpdateRotations(const FABRIKParams& i_params)
         engine::math::Quaternion rotation_parent_space = engine::math::Quaternion::GetShortestRotation(direction_before_solving_parent_space, direction_after_solving_parent_space);
 
         // Update rotation
-        //i_params.skeleton->joints[parent_index].local_to_parent.rotation_ = rotation_parent_space * i_params.skeleton->joints[parent_index].local_to_parent.rotation_;
-        i_params.skeleton->joints[parent_index].local_to_parent.rotation_ = rotation_parent_space * rotation_parent_space * i_params.skeleton->joints[parent_index].local_to_parent.rotation_;
+        i_params.skeleton->joints[parent_index].local_to_parent.rotation_ = rotation_parent_space * i_params.skeleton->joints[parent_index].local_to_parent.rotation_;
+        //i_params.skeleton->joints[parent_index].local_to_parent.rotation_ = rotation_parent_space * rotation_parent_space * i_params.skeleton->joints[parent_index].local_to_parent.rotation_;
         
         // Update matrices
-        i_params.skeleton->UpdateJointTransform(parent_index);
+        //i_params.skeleton->UpdateJointTransform(parent_index);
+        //i_params.skeleton->UpdateJointTransform(child_index);
+        i_params.skeleton->UpdateChain(parent_index, i_params.end_joint_index);
 
         // Update joint indices
         parent_index = child_index;

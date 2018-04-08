@@ -39,6 +39,17 @@ void Skeleton::UpdateJointTransform(uint8_t i_index)
     //joints_world_space[i_index].set(joint_trans.x, joint_trans.y, joint_trans.z);
 }
 
+void Skeleton::UpdateChain(uint8_t i_start_index, uint8_t i_end_index)
+{
+    UpdateJointTransform(i_start_index);
+
+    while (i_start_index != i_end_index)
+    {
+        i_start_index = joints[i_start_index].child_index;
+        UpdateJointTransform(i_start_index);
+    }
+}
+
 void Skeleton::CreateSkeleton(Skeleton*& io_skeleton, ESkeletonType i_type)
 {
     if (io_skeleton == nullptr ||

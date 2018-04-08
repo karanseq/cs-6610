@@ -45,6 +45,7 @@ struct Skeleton
     uint8_t                     num_joints = 0;
 
     void UpdateJointTransform(uint8_t i_index);
+    void UpdateChain(uint8_t i_start_index, uint8_t i_end_index);
 
     static void CreateSkeleton(Skeleton*& io_skeleton, ESkeletonType i_type);
 

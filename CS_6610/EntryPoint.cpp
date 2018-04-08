@@ -333,8 +333,9 @@ void InitMeshes()
     constexpr float planeHalfWidth = 50.0f;
     MeshHelpers::CreatePlaneMesh(g_planeBufferIds, planeHalfWidth);
 
-    g_targetTransform.rotation_ = engine::math::Quaternion::RIGHT;
-    g_targetTransform.position_.x_ = 20.0f;
+    g_targetTransform.rotation_ = engine::math::Quaternion::FORWARD;
+    g_targetTransform.position_.x_ = -30.0f;
+    g_targetTransform.position_.y_ = 30.0f;
     constexpr float halfWidth = 0.5f;
     MeshHelpers::CreateBoxMesh(g_targetBufferIds, halfWidth);
 }
@@ -442,18 +443,7 @@ void Render()
         for (uint8_t i = 0; i < g_skeleton->num_joints; ++i)
         {
             // Set the model transformation
-            //g_planeGLProgram.SetUniformMatrix4("g_transform_model", g_skeleton->local_to_world_transforms[i].data);
-
-            const engine::math::Vec3D& joint_world_position = g_skeleton->joints_world_space[i];
-            cy::Matrix4f model = cy::Matrix4f::MatrixTrans(cy::Point3f(joint_world_position.x_, joint_world_position.y_, joint_world_position.z_));
-            g_planeGLProgram.SetUniformMatrix4("g_transform_model", model.data);
-
-            //cy::Matrix3f rotation;
-            //cy::Matrix3f::GetRotationMatrixFromQuaternion(rotation, g_skeleton->joints[i].local_to_parent.rotation_);
-            //cy::Matrix4f model(rotation);
-            //const engine::math::Vec3D& joint_world_position = g_skeleton->joints_world_space[i];
-            //model.AddTrans(cy::Point3f(joint_world_position.x_, joint_world_position.y_, joint_world_position.z_));
-            //g_planeGLProgram.SetUniformMatrix4("g_transform_model", model.data);
+            g_planeGLProgram.SetUniformMatrix4("g_transform_model", g_skeleton->local_to_world_transforms[i].data);
 
             // Set the color
             if (i == g_selectedJoint)
@@ -466,7 +456,8 @@ void Render()
             }
             else
             {
-                g_planeGLProgram.SetUniform("g_color", 0.2f, 0.5f, 1.0f);
+                //g_planeGLProgram.SetUniform("g_color", 0.2f, 0.5f, 1.0f);
+                g_planeGLProgram.SetUniform("g_color", 0.1f * i, 0.5f, 1.0f);
             }
 
             glBindVertexArray(g_skeletonBufferIds[i].vertexArrayId);
