@@ -30,7 +30,7 @@ void SolveForward(const FABRIKParams& i_params);
 void SolveBackward(const FABRIKParams& i_params);
 void UpdateRotations(const FABRIKParams& i_params);
 
-float CalculateChainLength(const Skeleton* i_skeleton, uint8_t i_rootJointIndex, uint8_t i_endJointIndex);
+float CalculateChainLength(const FABRIKParams& i_params);
 void PrintSolvedJoints(const FABRIKParams& i_params);
 
 } // namespace animation

@@ -553,10 +553,10 @@ void Update(float DeltaSeconds)
         // Joint position
         if (g_controlPressed)
         {
-            engine::math::Vec3D& jointPosition = g_skeleton->joints[g_selectedJoint].local_to_parent.position_;
-            jointPosition.x_ += float(deltaMouseX) * -movementDamping;
-            jointPosition.y_ += float(deltaMouseY) * -movementDamping;
-            mustUpdateSkeleton = true;
+            //engine::math::Vec3D& jointPosition = g_skeleton->joints[g_selectedJoint].local_to_parent.position_;
+            //jointPosition.x_ += float(deltaMouseX) * -movementDamping;
+            //jointPosition.y_ += float(deltaMouseY) * -movementDamping;
+            //mustUpdateSkeleton = true;
         }
         // Target position
         else if (g_altPressed)
