@@ -46,7 +46,7 @@ constexpr unsigned char ALT_KEY = 116;
 
 constexpr GLuint INVALID_INDEX = -1;
 constexpr double FRAME_RATE = 1.0 / 60.0;
-constexpr float DISTANCE_FROM_MESH = 100.0f;
+constexpr float SELECTION_RADIUS = 0.0005f;
 
 const cy::Point3f YELLOW(1.0f, 1.0f, 0.0f);
 const cy::Point3f WHITE(1.0f, 1.0f, 1.0f);
@@ -70,6 +70,8 @@ int g_currMouseZ = 0;
 int g_prevMouseX = 0;
 int g_prevMouseY = 0;
 int g_prevMouseZ = 0;
+float g_mouseScreenSpaceX = 0;
+float g_mouseScreenSpaceY = 0;
 uint8_t g_selectedJoint = 0;
 uint8_t g_selectedEndEffector = 0;
 
@@ -84,6 +86,7 @@ engine::math::Transform g_rootBoneTransform;
 engine::math::Transform g_targetTransform;
 
 // Matrices
+cy::Matrix4f g_view;
 cy::Matrix4f g_perspectiveProjection;
 
 // Shader
@@ -130,11 +133,28 @@ void Render();
 
 // Update functions
 void Update(float DeltaSeconds);
+void UpdateRotationBasedOnInput(float i_delta_x, float i_delta_y);
+void UpdatePositionBasedOnInput(float i_delta_x, float i_delta_y, float i_delta_mouse_z);
+void UpdateSelection();
 void UpdateSkeleton();
 
 // Other functions
 void SolveFABRIK();
 void PrintMatrix(const cy::Matrix4f& i_matrix);
+bool TestPointForSelection(const cy::Point3f& i_point_world_space, const cy::Matrix4f& i_screen);
+void ScreenCoordsToWorldRay(
+    float i_mouse_x, float i_mouse_y,
+    cy::Matrix4f& i_view, cy::Matrix4f& i_projection,
+    cy::Point3f& o_origin, cy::Point3f& o_direction
+);
+bool TestRayOBBIntersection(
+    const cy::Point3f& i_ray_origin,
+    const cy::Point3f& i_ray_direction,
+    const cy::Point3f& i_aabb_min,
+    const cy::Point3f& i_aabb_max,
+    const cy::Matrix4f& i_model,
+    float& o_intersection_distance
+);
 
 
 //~====================================================================================================
@@ -279,12 +299,20 @@ void MouseFunc(int button, int state, int x, int y)
     g_currMouseY = buttonPressed ? y : g_currMouseY;
     g_prevMouseX = buttonPressed ? x : g_prevMouseX;
     g_prevMouseY = buttonPressed ? y : g_prevMouseY;
+
+    g_mouseScreenSpaceX = float(g_currMouseX - WINDOW_WIDTH / 2) / float(WINDOW_WIDTH / 2);
+    g_mouseScreenSpaceY = float(g_currMouseY - WINDOW_HEIGHT / 2) / float(WINDOW_HEIGHT / 2);
+
+    UpdateSelection();
 }
 
 void MotionFunc(int x, int y)
 {
     g_currMouseX = x;
     g_currMouseY = y;
+
+    g_mouseScreenSpaceX = float(g_currMouseX - WINDOW_WIDTH / 2) / float(WINDOW_WIDTH / 2);
+    g_mouseScreenSpaceY = float(g_currMouseY - WINDOW_HEIGHT / 2) / float(WINDOW_HEIGHT / 2);
 }
 
 void MouseWheelFunc(int button, int dir, int x, int y)
@@ -417,9 +445,8 @@ void Render()
     g_planeGLProgram.Bind();
 
     // Set the view transformation
-    cy::Matrix4f view;
-    cy::Matrix4f::GetMatrixFromTransform(view, g_cameraTransform);
-    g_planeGLProgram.SetUniformMatrix4("g_transform_view", view.data);
+    cy::Matrix4f::GetMatrixFromTransform(g_view, g_cameraTransform);
+    g_planeGLProgram.SetUniformMatrix4("g_transform_view", g_view.data);
 
     // Set the projection matrix
     g_planeGLProgram.SetUniformMatrix4("g_transform_projection", g_perspectiveProjection.data);
@@ -485,101 +512,19 @@ void Render()
 
 void Update(float DeltaSeconds)
 {
-    bool mustUpdateSkeleton = false;
-
     static constexpr float decrement = 0.1f;
     static float mouseZ = 0.0f;
 
-    const int deltaMouseX = g_currMouseX - g_prevMouseX;
-    const int deltaMouseY = g_currMouseY - g_prevMouseY;
-    const int deltaMouseZ = g_currMouseZ - g_prevMouseZ;
+    const float deltaMouseX = float(g_currMouseX - g_prevMouseX);
+    const float deltaMouseY = float(g_currMouseY - g_prevMouseY);
+    const float deltaMouseZ = float(g_currMouseZ - g_prevMouseZ);
 
     mouseZ = fabs(float(deltaMouseZ)) > fabs(mouseZ) ? float(deltaMouseZ) : mouseZ;
 
-    // Rotation
-    if (g_leftMouseButtonPressed)
-    {
-        static constexpr float rotationDamping = DEGREES_TO_RADIANS(0.05f);
-
-        if (g_controlPressed)
-        {
-            mustUpdateSkeleton = true;
-
-            // Joint rotation
-            if (abs(deltaMouseX) > 0.0f)
-            {
-                engine::math::Quaternion roll = engine::math::Quaternion::FORWARD;
-                roll.w_ = float(-deltaMouseX) * rotationDamping;
-
-                engine::math::Quaternion& jointRotation = g_skeleton->joints[g_selectedJoint].local_to_parent.rotation_;
-                jointRotation = roll * roll * jointRotation;
-                jointRotation.Normalize();
-
-                mustUpdateSkeleton = true;
-            }
-
-            if (abs(deltaMouseY) > 0.0f)
-            {
-                engine::math::Quaternion pitch = engine::math::Quaternion::RIGHT;
-                pitch.w_ = float(-deltaMouseY) * rotationDamping;
-
-                engine::math::Quaternion& jointRotation = g_skeleton->joints[g_selectedJoint].local_to_parent.rotation_;
-                jointRotation = pitch * pitch * jointRotation;
-                jointRotation.Normalize();
-
-                mustUpdateSkeleton = true;
-            }
-        }
-        else
-        {
-            // Camera rotation
-            if (abs(deltaMouseX) > 0.0f)
-            {
-                engine::math::Quaternion yaw = engine::math::Quaternion::UP;
-                yaw.w_ = float(-deltaMouseX) * rotationDamping;
-                yaw.Normalize();
-
-                g_cameraTransform.rotation_ = yaw * yaw * g_cameraTransform.rotation_;
-                g_cameraTransform.rotation_.Normalize();
-            }
-        }
-    }
-
-    // Position
-    if (g_rightMouseButtonPressed)
-    {
-        static constexpr float movementDamping = 0.05f;
-
-        // Joint position
-        if (g_controlPressed)
-        {
-            //engine::math::Vec3D& jointPosition = g_skeleton->joints[g_selectedJoint].local_to_parent.position_;
-            //jointPosition.x_ += float(deltaMouseX) * -movementDamping;
-            //jointPosition.y_ += float(deltaMouseY) * -movementDamping;
-            //mustUpdateSkeleton = true;
-        }
-        // Target position
-        else if (g_altPressed)
-        {
-            g_targetTransform.position_.x_ += float(deltaMouseX) * -movementDamping;
-            g_targetTransform.position_.y_ += float(deltaMouseY) * -movementDamping;
-        }
-        // Camera position
-        else
-        {
-            g_cameraTransform.position_.x_ += float(deltaMouseX) * movementDamping;
-            g_cameraTransform.position_.y_ += float(deltaMouseY) * -movementDamping;
-        }
-    }
-
-    if (g_altPressed)
-    {
-        g_targetTransform.position_.z_ += mouseZ * 0.25f;
-    }
-    else
-    {
-        g_cameraTransform.position_.z_ += mouseZ;
-    }
+    // Respond to input
+    UpdateRotationBasedOnInput(deltaMouseX, deltaMouseY);
+    UpdatePositionBasedOnInput(deltaMouseX, deltaMouseY, mouseZ);
+    //UpdateSelection();
 
     // Solve FABRIK
     if (g_fPressed)
@@ -593,18 +538,142 @@ void Update(float DeltaSeconds)
     {
         g_rPressed = false;
         InitSkeletonTransforms();
-        mustUpdateSkeleton = true;
     }
 
-    if (mustUpdateSkeleton)
-    {
-        UpdateSkeleton();
-    }
+    UpdateSkeleton();
 
     g_prevMouseX = g_currMouseX;
     g_prevMouseY = g_currMouseY;
     g_prevMouseZ = g_currMouseZ;
     mouseZ -= mouseZ * decrement;
+}
+
+void UpdateRotationBasedOnInput(float i_delta_x, float i_delta_y)
+{
+    if (g_leftMouseButtonPressed)
+    {
+        static constexpr float rotationDamping = DEGREES_TO_RADIANS(0.05f);
+
+        if (g_controlPressed)
+        {
+            // Joint rotation
+            if (abs(i_delta_x) > 0.0f)
+            {
+                engine::math::Quaternion roll = engine::math::Quaternion::FORWARD;
+                roll.w_ = -i_delta_x * rotationDamping;
+
+                engine::math::Quaternion& jointRotation = g_skeleton->joints[g_selectedJoint].local_to_parent.rotation_;
+                jointRotation = roll * roll * jointRotation;
+                jointRotation.Normalize();
+            }
+
+            if (abs(i_delta_y) > 0.0f)
+            {
+                engine::math::Quaternion pitch = engine::math::Quaternion::RIGHT;
+                pitch.w_ = float(-i_delta_y) * rotationDamping;
+
+                engine::math::Quaternion& jointRotation = g_skeleton->joints[g_selectedJoint].local_to_parent.rotation_;
+                jointRotation = pitch * pitch * jointRotation;
+                jointRotation.Normalize();
+            }
+        }
+        else
+        {
+            // Camera rotation
+            if (abs(i_delta_x) > 0.0f)
+            {
+                engine::math::Quaternion yaw = engine::math::Quaternion::UP;
+                yaw.w_ = -i_delta_x * rotationDamping;
+                yaw.Normalize();
+
+                g_cameraTransform.rotation_ = yaw * yaw * g_cameraTransform.rotation_;
+                g_cameraTransform.rotation_.Normalize();
+            }
+        }
+    }
+}
+
+void UpdatePositionBasedOnInput(float i_delta_x, float i_delta_y, float i_delta_mouse_z)
+{
+    if (g_rightMouseButtonPressed)
+    {
+        static constexpr float movementDamping = 0.05f;
+
+        if (g_altPressed)
+        {
+            g_targetTransform.position_.x_ += i_delta_x * -movementDamping;
+            g_targetTransform.position_.y_ += i_delta_y * -movementDamping;
+        }
+        // Camera position
+        else
+        {
+            g_cameraTransform.position_.x_ += i_delta_x * movementDamping;
+            g_cameraTransform.position_.y_ += i_delta_y * -movementDamping;
+        }
+    }
+
+    if (g_altPressed)
+    {
+        g_targetTransform.position_.z_ += i_delta_mouse_z * 0.25f;
+    }
+    else
+    {
+        g_cameraTransform.position_.z_ += i_delta_mouse_z;
+    }
+}
+
+void UpdateSelection()
+{
+    if (g_leftMouseButtonPressed == false)
+    {
+        return;
+    }
+
+    const cy::Matrix4f screen = g_perspectiveProjection * g_view;
+    const cy::Point3f target_world_space(g_targetTransform.position_.x_, g_targetTransform.position_.y_, g_targetTransform.position_.z_);
+
+    if (TestPointForSelection(target_world_space, screen))
+    {
+        LOG("Target selected!");
+    }
+    else
+    {
+        LOG("Target not found!");
+    }
+
+    //http://www.opengl-tutorial.org/miscellaneous/clicking-on-objects/picking-with-custom-ray-obb-function/
+
+    //cy::Point3f ray_origin;
+    //cy::Point3f ray_direction;
+    //ScreenCoordsToWorldRay(
+    //    g_mouseScreenSpaceX, g_mouseScreenSpaceY,
+    //    g_view, g_perspectiveProjection,
+    //    ray_origin, ray_direction
+    //);
+
+    //float intersection_distance = 0.0f;
+    //const cy::Point3f aabb_min(-g_targetExtents.x_ * 2.0f, -g_targetExtents.y_ * 2.0f, -g_targetExtents.z_ * 2.0f);
+    //const cy::Point3f aabb_max = -aabb_min;
+    //cy::Matrix4f model;
+    //cy::Matrix4f::GetMatrixFromTransform(model, g_targetTransform);
+
+    //bool intersection_found = TestRayOBBIntersection(
+    //    ray_origin,
+    //    ray_direction,
+    //    aabb_min,
+    //    aabb_max,
+    //    model,
+    //    intersection_distance
+    //);
+
+    //if (intersection_found)
+    //{
+    //    LOG("Found intersection with target at %f units!", intersection_distance);
+    //}
+    //else
+    //{
+    //    LOG("Target not intersected!");
+    //}
 }
 
 void UpdateSkeleton()
@@ -666,4 +735,144 @@ void PrintMatrix(const cy::Matrix4f& i_matrix)
     LOG("%f %f %f %f", i_matrix.data[4], i_matrix.data[5], i_matrix.data[6], i_matrix.data[7]);
     LOG("%f %f %f %f", i_matrix.data[8], i_matrix.data[9], i_matrix.data[10], i_matrix.data[11]);
     LOG("%f %f %f %f", i_matrix.data[12], i_matrix.data[13], i_matrix.data[14], i_matrix.data[15]);
+}
+
+bool TestPointForSelection(const cy::Point3f& i_point_world_space, const cy::Matrix4f& i_screen)
+{
+    const cy::Point4f target_screen_space = i_screen * i_point_world_space;
+    const cy::Point2f mouse_screen_space2d(g_mouseScreenSpaceX, g_mouseScreenSpaceY);
+    const cy::Point2f target_screen_space2d(target_screen_space.x / target_screen_space.w, -target_screen_space.y / target_screen_space.w);
+    const cy::Point2f delta = target_screen_space2d - mouse_screen_space2d;
+    return delta.LengthSquared() < SELECTION_RADIUS;
+}
+
+void ScreenCoordsToWorldRay(
+    float i_mouse_x, float i_mouse_y,
+    cy::Matrix4f& i_view, cy::Matrix4f& i_projection,
+    cy::Point3f& o_origin, cy::Point3f& o_direction
+)
+{
+    const cy::Point4f ray_start_NDC_space(i_mouse_x, i_mouse_y, -1.0f, 1.0f);
+    const cy::Point4f ray_end_NDC_space(i_mouse_x, i_mouse_y, 0.0f, 1.0f);
+
+    const cy::Matrix4f inverse_projection = i_projection.GetInverse();
+    const cy::Matrix4f inverse_view = i_view.GetInverse();
+
+    cy::Point4f ray_start_camera_space = inverse_projection * ray_start_NDC_space;
+    ray_start_camera_space /= ray_start_camera_space.w;
+    cy::Point4f ray_start_world_space = inverse_view * ray_start_camera_space;
+    ray_start_world_space /= ray_start_world_space.w;
+    cy::Point4f ray_end_camera_space = inverse_projection * ray_end_NDC_space;
+    ray_end_camera_space /= ray_end_camera_space.w;
+    cy::Point4f ray_end_world_space = inverse_view * ray_end_camera_space;
+    ray_end_world_space /= ray_end_world_space.w;
+
+    const cy::Point3f ray_direction(ray_end_world_space - ray_start_world_space);
+    o_origin = cy::Point3f(ray_start_world_space);
+    o_direction = ray_direction.GetNormalized();
+}
+
+bool TestRayOBBIntersection(
+    const cy::Point3f& i_ray_origin,
+    const cy::Point3f& i_ray_direction,
+    const cy::Point3f& i_aabb_min,
+    const cy::Point3f& i_aabb_max,
+    const cy::Matrix4f& i_model,
+    float& o_intersection_distance
+)
+{
+    // Intersection method from Real-Time Rendering and Essential Mathematics for Games
+
+    float min = 0.0f;
+    float max = 100000.0f;
+
+    const cy::Point3f OBB_position_world_space = i_model.GetTrans();
+    const cy::Point3f ray_to_OBB = OBB_position_world_space - i_ray_origin;
+
+    // Test intersection with the two planes perpendicular to the OBB's X axis
+    {
+        const cy::Point3f x_axis(i_model.GetRow(0));
+        float e = x_axis.Dot(ray_to_OBB);
+        float f = i_ray_direction.Dot(x_axis);
+
+        if (fabs(f) > 0.001f)
+        {
+            float t1 = (e + i_aabb_min.x) / f;
+            float t2 = (e + i_aabb_max.x) / f;
+
+            t1 = t1 > t2 ? t2 : t1;
+            t2 = t1 > t2 ? t1 : t2;
+
+            max = t2 < max ? t2 : max;
+            min = t1 > min ? t1 : min;
+
+            if (max < min)
+            {
+                return false;
+            }
+        }
+        else if (-e + i_aabb_min.x > 0.0f || -e + i_aabb_max.x < 0.0f)
+        {
+            return false;
+        }
+    }
+
+    // Test intersection with the two planes perpendicular to the OBB's Y axis
+    {
+        const cy::Point3f y_axis(i_model.GetRow(1));
+        float e = y_axis.Dot(ray_to_OBB);
+        float f = i_ray_direction.Dot(y_axis);
+
+        if (fabs(f) > 0.001f)
+        {
+            float t1 = (e + i_aabb_min.y) / f;
+            float t2 = (e + i_aabb_max.y) / f;
+
+            t1 = t1 > t2 ? t2 : t1;
+            t2 = t1 > t2 ? t1 : t2;
+
+            max = t2 < max ? t2 : max;
+            min = t1 > min ? t1 : min;
+
+            if (max < min)
+            {
+                return false;
+            }
+        }
+        else if (-e + i_aabb_min.y > 0.0f || -e + i_aabb_max.y < 0.0f)
+        {
+            return false;
+        }
+    }
+
+    // Test intersection with the two planes perpendicular to the OBB's Z axis
+    {
+        const cy::Point3f z_axis(i_model.GetRow(2));
+        float e = z_axis.Dot(ray_to_OBB);
+        float f = i_ray_direction.Dot(z_axis);
+
+        if (fabs(f) > 0.001f)
+        {
+            float t1 = (e + i_aabb_min.z) / f;
+            float t2 = (e + i_aabb_max.z) / f;
+
+            t1 = t1 > t2 ? t2 : t1;
+            t2 = t1 > t2 ? t1 : t2;
+
+            max = t2 < max ? t2 : max;
+            min = t1 > min ? t1 : min;
+
+            if (max < min)
+            {
+                return false;
+            }
+        }
+        else if (-e + i_aabb_min.z > 0.0f || -e + i_aabb_max.z < 0.0f)
+        {
+            return false;
+        }
+    }
+
+    o_intersection_distance = min;
+    return true;
 }
