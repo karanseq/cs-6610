@@ -52,7 +52,7 @@ const cy::Point3f YELLOW(1.0f, 1.0f, 0.0f);
 const cy::Point3f WHITE(1.0f, 1.0f, 1.0f);
 const cy::Point3f GREY(0.5f, 0.5f, 0.5f);
 
-constexpr engine::animation::ESkeletonType SKELETON_TYPE = engine::animation::ESkeletonType::SimpleChain;
+constexpr engine::animation::ESkeletonType SKELETON_TYPE = engine::animation::ESkeletonType::Humanoid;
 
 
 //~====================================================================================================
@@ -552,29 +552,23 @@ void UpdateRotationBasedOnInput(float i_delta_x, float i_delta_y)
 {
     if (g_leftMouseButtonPressed)
     {
-        static constexpr float rotationDamping = DEGREES_TO_RADIANS(0.05f);
+        static constexpr float rotationDamping = DEGREES_TO_RADIANS(0.1f);
 
         if (g_controlPressed)
         {
             // Joint rotation
             if (abs(i_delta_x) > 0.0f)
             {
-                engine::math::Quaternion roll = engine::math::Quaternion::FORWARD;
-                roll.w_ = -i_delta_x * rotationDamping;
-
-                engine::math::Quaternion& jointRotation = g_skeleton->joints[g_selectedJoint].local_to_parent.rotation_;
-                jointRotation = roll * roll * jointRotation;
-                jointRotation.Normalize();
+				const engine::math::Quaternion roll(i_delta_x * rotationDamping, engine::math::Vec3D::UNIT_Z);
+				g_skeleton->joints[g_selectedJoint].local_to_parent.rotation_ = roll * g_skeleton->joints[g_selectedJoint].local_to_parent.rotation_;
+				g_skeleton->joints[g_selectedJoint].local_to_parent.rotation_.Normalize();
             }
 
             if (abs(i_delta_y) > 0.0f)
             {
-                engine::math::Quaternion pitch = engine::math::Quaternion::RIGHT;
-                pitch.w_ = float(-i_delta_y) * rotationDamping;
-
-                engine::math::Quaternion& jointRotation = g_skeleton->joints[g_selectedJoint].local_to_parent.rotation_;
-                jointRotation = pitch * pitch * jointRotation;
-                jointRotation.Normalize();
+				const engine::math::Quaternion pitch(i_delta_y * rotationDamping, engine::math::Vec3D::UNIT_X);
+				g_skeleton->joints[g_selectedJoint].local_to_parent.rotation_ = pitch * g_skeleton->joints[g_selectedJoint].local_to_parent.rotation_;
+				g_skeleton->joints[g_selectedJoint].local_to_parent.rotation_.Normalize();
             }
         }
         else
@@ -582,11 +576,8 @@ void UpdateRotationBasedOnInput(float i_delta_x, float i_delta_y)
             // Camera rotation
             if (abs(i_delta_x) > 0.0f)
             {
-                engine::math::Quaternion yaw = engine::math::Quaternion::UP;
-                yaw.w_ = -i_delta_x * rotationDamping;
-                yaw.Normalize();
-
-                g_cameraTransform.rotation_ = yaw * yaw * g_cameraTransform.rotation_;
+				const engine::math::Quaternion yaw(i_delta_x * rotationDamping, engine::math::Vec3D::UNIT_Y);
+                g_cameraTransform.rotation_ = yaw * g_cameraTransform.rotation_;
                 g_cameraTransform.rotation_.Normalize();
             }
         }

@@ -20,7 +20,7 @@ struct FABRIKParams
     uint8_t                             root_joint_index = 0;
     uint8_t                             end_joint_index = 0;
     uint8_t                             iterations = 25;
-    float                               tolerance = 0.01f;
+    float                               tolerance = 0.001f;
 
 }; // struct FABRIKParams
 
