@@ -43,13 +43,15 @@ uint8_t FABRIK(const FABRIKParams& i_params)
         // When the target is within reach,
         // we solve till either the end effector is "close enough"
         // or we run out of iterations
+        engine::math::Vec3D previous_end_effector_world_space = i_params.target;
         for (num_iterations = 0; num_iterations < i_params.iterations; ++num_iterations)
         {
-            if ((i_params.skeleton->joints_world_space[i_params.end_joint_index] - i_params.target).Length() < i_params.tolerance)
+            if ((i_params.skeleton->joints_world_space[i_params.end_joint_index] - previous_end_effector_world_space).Length() < i_params.tolerance)
             {
                 break;
             }
 
+            previous_end_effector_world_space = i_params.skeleton->joints_world_space[i_params.end_joint_index];
             SolveForward(i_params);
             SolveBackward(i_params);
         }
