@@ -92,13 +92,13 @@ void Skeleton::InitSimpleChain(Skeleton*& io_skeleton)
     }
 
     // Root
-    io_skeleton->joints[0].local_to_parent.rotation_ = engine::math::Quaternion::FORWARD * engine::math::Quaternion::FORWARD;
+	io_skeleton->joints[0].local_to_parent.rotation_ = engine::math::Quaternion(0.0f, engine::math::Vec3D::UNIT_Z);
     io_skeleton->joints[0].local_to_parent.position_ = engine::math::Vec3D::ZERO;
 
     // Chain
     for (uint8_t i = 1; i < io_skeleton->num_joints; ++i)
     {
-        io_skeleton->joints[i].local_to_parent.rotation_ = engine::math::Quaternion::FORWARD * engine::math::Quaternion::FORWARD;
+        io_skeleton->joints[i].local_to_parent.rotation_ = engine::math::Quaternion(0.0f, engine::math::Vec3D::UNIT_Z);
         io_skeleton->joints[i].local_to_parent.position_.set(0.0f, io_skeleton->bone_length, 0.0f);
     }
 }

@@ -9,16 +9,17 @@
 namespace engine {
 namespace animation {
 
-void FABRIK(const FABRIKParams& i_params)
+uint8_t FABRIK(const FABRIKParams& i_params)
 {
     if (i_params.skeleton == nullptr ||
         i_params.root_joint_index == i_params.end_joint_index ||
         i_params.iterations == 0)
     {
-        return;
+        return 0;
     }
 
-    bool mustUpdateRotations = false;
+	uint8_t num_iterations = 0;
+
     const engine::math::Vec3D root_to_target_world_space = i_params.target - i_params.skeleton->joints_world_space[i_params.root_joint_index];
     const float chain_length = CalculateChainLength(i_params);
 
@@ -36,36 +37,27 @@ void FABRIK(const FABRIKParams& i_params)
 
             joint_index = child_index;
         }
-
-        mustUpdateRotations = true;
     }
     else
     {
         // When the target is within reach,
         // we solve till either the end effector is "close enough"
         // or we run out of iterations
-        uint8_t i = 0;
-        for (i = 0; i < i_params.iterations; ++i)
+        for (num_iterations = 0; num_iterations < i_params.iterations; ++num_iterations)
         {
-            if ((i_params.skeleton->joints_world_space[i_params.end_joint_index] - i_params.target).LengthSquared() < i_params.tolerance)
+            if ((i_params.skeleton->joints_world_space[i_params.end_joint_index] - i_params.target).Length() < i_params.tolerance)
             {
                 break;
             }
 
             SolveForward(i_params);
             SolveBackward(i_params);
-            mustUpdateRotations = true;
         }
-
-#if 0
-        LOG("FABRIK solved in %d iterations!", i);
-#endif
     }
 
-    if (mustUpdateRotations)
-    {
-        UpdateRotations(i_params);
-    }
+    UpdateRotations(i_params);
+
+	return num_iterations;
 }
 
 void SolveForward(const FABRIKParams& i_params)
@@ -98,7 +90,7 @@ void SolveBackward(const FABRIKParams& i_params)
     i_params.skeleton->joints_world_space[joint_index].set(joint_trans.x, joint_trans.y, joint_trans.z);
 
     // Keep going till we reach the end
-    while (child_index != i_params.end_joint_index)
+    while (joint_index != i_params.end_joint_index)
     {
         const engine::math::Vec3D joint_to_child = i_params.skeleton->joints_world_space[child_index] - i_params.skeleton->joints_world_space[joint_index];
         const engine::math::Vec3D joint_to_child_normalized = joint_to_child.Normalize();

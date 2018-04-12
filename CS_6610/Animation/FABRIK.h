@@ -24,7 +24,7 @@ struct FABRIKParams
 
 }; // struct FABRIKParams
 
-void FABRIK(const FABRIKParams& i_params);
+uint8_t FABRIK(const FABRIKParams& i_params);
 
 void SolveForward(const FABRIKParams& i_params);
 void SolveBackward(const FABRIKParams& i_params);

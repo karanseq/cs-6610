@@ -52,7 +52,7 @@ const cy::Point3f YELLOW(1.0f, 1.0f, 0.0f);
 const cy::Point3f WHITE(1.0f, 1.0f, 1.0f);
 const cy::Point3f GREY(0.5f, 0.5f, 0.5f);
 
-constexpr engine::animation::ESkeletonType SKELETON_TYPE = engine::animation::ESkeletonType::Humanoid;
+constexpr engine::animation::ESkeletonType SKELETON_TYPE = engine::animation::ESkeletonType::SimpleChain;
 
 
 //~====================================================================================================
@@ -79,6 +79,9 @@ uint8_t g_selectedEndEffector = 0;
 //~====================================================================================================
 // Data
 
+// Skeleton
+engine::animation::Skeleton* g_skeleton = nullptr;
+
 // Transforms
 engine::math::Transform g_cameraTransform;
 engine::math::Transform g_planeTransform;
@@ -99,9 +102,6 @@ BufferIdGroup g_targetBufferIds;
 
 // Misc
 std::stringstream g_messageStream;
-
-// Skeleton
-engine::animation::Skeleton* g_skeleton = nullptr;
 
 
 //~====================================================================================================
@@ -526,21 +526,16 @@ void Update(float DeltaSeconds)
     UpdatePositionBasedOnInput(deltaMouseX, deltaMouseY, mouseZ);
     //UpdateSelection();
 
-    // Solve FABRIK
-    if (g_fPressed)
-    {
-        g_fPressed = false;
-        SolveFABRIK();
-    }
-
     // Reset skeleton
     if (g_rPressed)
     {
         g_rPressed = false;
-        InitSkeletonTransforms();
-    }
+		g_targetTransform.position_.x_ = -30.0f;
+		g_targetTransform.position_.y_ = 30.0f;
 
-    UpdateSkeleton();
+        InitSkeletonTransforms();
+		UpdateSkeleton();
+    }
 
     g_prevMouseX = g_currMouseX;
     g_prevMouseY = g_currMouseY;
@@ -562,6 +557,7 @@ void UpdateRotationBasedOnInput(float i_delta_x, float i_delta_y)
 				const engine::math::Quaternion roll(i_delta_x * rotationDamping, engine::math::Vec3D::UNIT_Z);
 				g_skeleton->joints[g_selectedJoint].local_to_parent.rotation_ = roll * g_skeleton->joints[g_selectedJoint].local_to_parent.rotation_;
 				g_skeleton->joints[g_selectedJoint].local_to_parent.rotation_.Normalize();
+				UpdateSkeleton();
             }
 
             if (abs(i_delta_y) > 0.0f)
@@ -569,6 +565,7 @@ void UpdateRotationBasedOnInput(float i_delta_x, float i_delta_y)
 				const engine::math::Quaternion pitch(i_delta_y * rotationDamping, engine::math::Vec3D::UNIT_X);
 				g_skeleton->joints[g_selectedJoint].local_to_parent.rotation_ = pitch * g_skeleton->joints[g_selectedJoint].local_to_parent.rotation_;
 				g_skeleton->joints[g_selectedJoint].local_to_parent.rotation_.Normalize();
+				UpdateSkeleton();
             }
         }
         else
@@ -594,6 +591,7 @@ void UpdatePositionBasedOnInput(float i_delta_x, float i_delta_y, float i_delta_
         {
             g_targetTransform.position_.x_ += i_delta_x * -movementDamping;
             g_targetTransform.position_.y_ += i_delta_y * -movementDamping;
+			SolveFABRIK();
         }
         // Camera position
         else
@@ -605,7 +603,11 @@ void UpdatePositionBasedOnInput(float i_delta_x, float i_delta_y, float i_delta_
 
     if (g_altPressed)
     {
-        g_targetTransform.position_.z_ += i_delta_mouse_z * 0.25f;
+		g_targetTransform.position_.z_ += i_delta_mouse_z * 0.25f;
+		if (i_delta_mouse_z > 0.0f)
+		{
+			SolveFABRIK();
+		}
     }
     else
     {
@@ -685,6 +687,10 @@ void UpdateSkeleton()
 
 void SolveFABRIK()
 {
+	// Reset to bind pose
+	InitSkeletonTransforms();
+	UpdateSkeleton();
+
     // Prepare FABRIK parameters
     engine::animation::FABRIKParams params;
     params.target = g_targetTransform.position_;
@@ -717,7 +723,8 @@ void SolveFABRIK()
     }
 
     // Solve
-    engine::animation::FABRIK(params);
+	uint8_t num_iterations = engine::animation::FABRIK(params);
+	LOG("NumIterations:%d", num_iterations);
 }
 
 void PrintMatrix(const cy::Matrix4f& i_matrix)
