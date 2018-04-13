@@ -44,6 +44,11 @@ inline bool IsZero(float i_number)
     return FuzzyEquals(i_number, MIN_EPSILON);
 }
 
+inline float Clamp(float i_number, float i_min, float i_max)
+{
+    return i_number < i_min ? i_number : (i_number > i_max ? i_max : i_number);
+}
+
 inline float GetMinOfFour(float i_first, float i_second, float i_third, float i_fourth)
 {
     float first_two = i_first < i_second ? i_first : i_second;

@@ -12,6 +12,8 @@
 // Engine includes
 #include "Animation/FABRIK.h"
 #include "Animation/Skeleton.h"
+#include "Graphics/Mesh.h"
+#include "Graphics/MeshHelpers.h"
 #include "Math/Transform.h"
 
 // Util includes
@@ -20,7 +22,6 @@
 #include "Utils/cyTriMesh.h"
 #include "Utils/lodepng.h"
 #include "Utils/logger.h"
-#include "Utils/MeshHelpers.h"
 
 
 //~====================================================================================================
@@ -58,22 +59,22 @@ constexpr engine::animation::ESkeletonType SKELETON_TYPE = engine::animation::ES
 //~====================================================================================================
 // Counters
 std::chrono::time_point<std::chrono::steady_clock> LAST_DRAW_TIME_POINT;
-bool g_leftMouseButtonPressed = false;
-bool g_rightMouseButtonPressed = false;
-bool g_controlPressed = false;
-bool g_altPressed = false;
-bool g_fPressed = false;
-bool g_rPressed = false;
-int g_currMouseX = 0;
-int g_currMouseY = 0;
-int g_currMouseZ = 0;
-int g_prevMouseX = 0;
-int g_prevMouseY = 0;
-int g_prevMouseZ = 0;
-float g_mouseScreenSpaceX = 0;
-float g_mouseScreenSpaceY = 0;
-uint8_t g_selectedJoint = 0;
-uint8_t g_selectedEndEffector = 0;
+bool g_left_mouse_button_pressed = false;
+bool g_right_mouse_button_pressed = false;
+bool g_control_pressed = false;
+bool g_alt_pressed = false;
+bool g_f_pressed = false;
+bool g_r_pressed = false;
+int g_curr_mouse_x = 0;
+int g_curr_mouse_y = 0;
+int g_curr_mouse_z = 0;
+int g_prev_mouse_x = 0;
+int g_prev_mouse_y = 0;
+int g_prev_mouse_z = 0;
+float g_mouse_screen_space_x = 0;
+float g_mouse_screen_space_y = 0;
+uint8_t g_selected_joint = 0;
+uint8_t g_selected_end_effector = 0;
 
 
 //~====================================================================================================
@@ -83,25 +84,22 @@ uint8_t g_selectedEndEffector = 0;
 engine::animation::Skeleton* g_skeleton = nullptr;
 
 // Transforms
-engine::math::Transform g_cameraTransform;
-engine::math::Transform g_planeTransform;
-engine::math::Transform g_rootBoneTransform;
-engine::math::Transform g_targetTransform;
+engine::math::Transform g_camera_transform;
 
 // Matrices
 cy::Matrix4f g_view;
-cy::Matrix4f g_perspectiveProjection;
+cy::Matrix4f g_perspective_projection;
 
 // Shader
-cy::GLSLProgram g_planeGLProgram;
+cy::GLSLProgram g_GLProgram;
 
-// Buffer IDs
-BufferIdGroup g_planeBufferIds;
-BufferIdGroup* g_skeletonBufferIds;
-BufferIdGroup g_targetBufferIds;
+// Meshes
+engine::graphics::Mesh g_plane_mesh;
+engine::graphics::Mesh* g_joint_meshes;
+engine::graphics::Mesh g_target_mesh;
 
 // Misc
-std::stringstream g_messageStream;
+std::stringstream g_message_stream;
 
 
 //~====================================================================================================
@@ -120,8 +118,8 @@ void MouseWheelFunc(int button, int dir, int x, int y);
 // Initialization functions
 void BuildShaders();
 bool BuildShader(cy::GLSLProgram& o_program,
-    const char* i_vertexShaderPath,
-    const char* i_fragmentShaderPath);
+    const char* i_vertex_shader_path,
+    const char* i_fragment_shader_path);
 void InitMeshes();
 void InitCamera();
 void InitSkeleton();
@@ -255,19 +253,26 @@ void KeyboardFunc(unsigned char key, int x, int y)
     }
     else if (key == 'q')
     {
-        g_selectedJoint = g_selectedJoint < g_skeleton->num_joints - 1 ? g_selectedJoint + 1 : 0;
+        g_joint_meshes[g_selected_joint].SetColor(engine::graphics::Color::TURQUOISE);
+        g_selected_joint = g_selected_joint < g_skeleton->num_joints - 1 ? g_selected_joint + 1 : 0;
+        g_joint_meshes[g_selected_joint].SetColor(engine::graphics::Color::CYAN);
+
     }
     else if (key == 'w')
     {
-        g_selectedJoint = g_selectedJoint == 0 ? g_skeleton->num_joints - 1 : g_selectedJoint - 1;
+        g_joint_meshes[g_selected_joint].SetColor(engine::graphics::Color::TURQUOISE);
+        g_selected_joint = g_selected_joint == 0 ? g_skeleton->num_joints - 1 : g_selected_joint - 1;
+        g_joint_meshes[g_selected_joint].SetColor(engine::graphics::Color::CYAN);
     }
     else if (key == 'e')
     {
-        g_selectedEndEffector = g_selectedEndEffector <= engine::animation::Skeleton::LEFT_FOOT ? engine::animation::Skeleton::RIGHT_HAND : g_selectedEndEffector - 1;
+        g_joint_meshes[g_selected_end_effector].SetColor(engine::graphics::Color::TURQUOISE);
+        g_selected_end_effector = g_selected_end_effector <= engine::animation::Skeleton::LEFT_FOOT ? engine::animation::Skeleton::RIGHT_HAND : g_selected_end_effector - 1;
+        g_joint_meshes[g_selected_end_effector].SetColor(engine::graphics::Color::MAGENTA);
     }
 
-    g_fPressed = key == 'f';
-    g_rPressed = key == 'r';
+    g_f_pressed = key == 'f';
+    g_r_pressed = key == 'r';
 }
 
 void SpecialFunc(int key, int x, int y)
@@ -278,46 +283,46 @@ void SpecialFunc(int key, int x, int y)
     }
     else
     {
-        g_controlPressed = (key == CTRL_KEY);
-        g_altPressed = (key == ALT_KEY);
+        g_control_pressed = (key == CTRL_KEY);
+        g_alt_pressed = (key == ALT_KEY);
     }
 }
 
 void SpecialUpFunc(int key, int x, int y)
 {
-    g_controlPressed = g_controlPressed ? !(key == CTRL_KEY) : g_controlPressed;
-    g_altPressed = g_altPressed ? !(key == ALT_KEY) : g_altPressed;
+    g_control_pressed = g_control_pressed ? !(key == CTRL_KEY) : g_control_pressed;
+    g_alt_pressed = g_alt_pressed ? !(key == ALT_KEY) : g_alt_pressed;
 }
 
 void MouseFunc(int button, int state, int x, int y)
 {
-    g_leftMouseButtonPressed = button == GLUT_LEFT_BUTTON ? state == GLUT_DOWN : g_leftMouseButtonPressed;
-    g_rightMouseButtonPressed = button == GLUT_RIGHT_BUTTON ? state == GLUT_DOWN : g_rightMouseButtonPressed;
+    g_left_mouse_button_pressed = button == GLUT_LEFT_BUTTON ? state == GLUT_DOWN : g_left_mouse_button_pressed;
+    g_right_mouse_button_pressed = button == GLUT_RIGHT_BUTTON ? state == GLUT_DOWN : g_right_mouse_button_pressed;
 
-    const bool buttonPressed = g_leftMouseButtonPressed || g_rightMouseButtonPressed;
-    g_currMouseX = buttonPressed ? x : g_currMouseX;
-    g_currMouseY = buttonPressed ? y : g_currMouseY;
-    g_prevMouseX = buttonPressed ? x : g_prevMouseX;
-    g_prevMouseY = buttonPressed ? y : g_prevMouseY;
+    const bool buttonPressed = g_left_mouse_button_pressed || g_right_mouse_button_pressed;
+    g_curr_mouse_x = buttonPressed ? x : g_curr_mouse_x;
+    g_curr_mouse_y = buttonPressed ? y : g_curr_mouse_y;
+    g_prev_mouse_x = buttonPressed ? x : g_prev_mouse_x;
+    g_prev_mouse_y = buttonPressed ? y : g_prev_mouse_y;
 
-    g_mouseScreenSpaceX = float(g_currMouseX - WINDOW_WIDTH / 2) / float(WINDOW_WIDTH / 2);
-    g_mouseScreenSpaceY = float(g_currMouseY - WINDOW_HEIGHT / 2) / float(WINDOW_HEIGHT / 2);
+    g_mouse_screen_space_x = float(g_curr_mouse_x - WINDOW_WIDTH / 2) / float(WINDOW_WIDTH / 2);
+    g_mouse_screen_space_y = float(g_curr_mouse_y - WINDOW_HEIGHT / 2) / float(WINDOW_HEIGHT / 2);
 
     UpdateSelection();
 }
 
 void MotionFunc(int x, int y)
 {
-    g_currMouseX = x;
-    g_currMouseY = y;
+    g_curr_mouse_x = x;
+    g_curr_mouse_y = y;
 
-    g_mouseScreenSpaceX = float(g_currMouseX - WINDOW_WIDTH / 2) / float(WINDOW_WIDTH / 2);
-    g_mouseScreenSpaceY = float(g_currMouseY - WINDOW_HEIGHT / 2) / float(WINDOW_HEIGHT / 2);
+    g_mouse_screen_space_x = float(g_curr_mouse_x - WINDOW_WIDTH / 2) / float(WINDOW_WIDTH / 2);
+    g_mouse_screen_space_y = float(g_curr_mouse_y - WINDOW_HEIGHT / 2) / float(WINDOW_HEIGHT / 2);
 }
 
 void MouseWheelFunc(int button, int dir, int x, int y)
 {
-    g_currMouseZ += dir * 3;
+    g_curr_mouse_z += dir * 3;
 }
 
 
@@ -326,26 +331,26 @@ void MouseWheelFunc(int button, int dir, int x, int y)
 
 void BuildShaders()
 {
-    BuildShader(g_planeGLProgram, PLANE_VERTEX_SHADER_PATH, PLANE_FRAGMENT_SHADER_PATH);
+    BuildShader(g_GLProgram, PLANE_VERTEX_SHADER_PATH, PLANE_FRAGMENT_SHADER_PATH);
 }
 
 bool BuildShader(cy::GLSLProgram& o_program, 
-    const char* i_vertexShaderPath,
-    const char* i_fragmentShaderPath)
+    const char* i_vertex_shader_path,
+    const char* i_fragment_shader_path)
 {
     // Compile Shaders
-    g_messageStream.clear();
-    if (o_program.BuildFiles(i_vertexShaderPath, i_fragmentShaderPath, nullptr, nullptr, nullptr, &g_messageStream) == false)
+    g_message_stream.clear();
+    if (o_program.BuildFiles(i_vertex_shader_path, i_fragment_shader_path, nullptr, nullptr, nullptr, &g_message_stream) == false)
     {
-        LOG_ERROR("%s", g_messageStream.str().c_str());
+        LOG_ERROR("%s", g_message_stream.str().c_str());
         return false;
     }
 
     // Link Program
-    g_messageStream.clear();
-    if (o_program.Link(&g_messageStream) == false)
+    g_message_stream.clear();
+    if (o_program.Link(&g_message_stream) == false)
     {
-        LOG_ERROR("%s", g_messageStream.str().c_str());
+        LOG_ERROR("%s", g_message_stream.str().c_str());
         return false;
     }
 
@@ -354,27 +359,38 @@ bool BuildShader(cy::GLSLProgram& o_program,
 
 void InitMeshes()
 {
-    //================================================
-    // Floor
+    // Init plane
+    {
+        engine::math::Transform transform;
+        transform.rotation_ = engine::math::Quaternion::RIGHT;
+        g_plane_mesh.SetTransform(transform);
+        g_plane_mesh.SetColor(engine::graphics::Color::GRAY);
 
-    g_planeTransform.rotation_ = engine::math::Quaternion::RIGHT;
-    constexpr float planeHalfWidth = 50.0f;
-    MeshHelpers::CreatePlaneMesh(g_planeBufferIds, planeHalfWidth);
+        constexpr float planeHalfWidth = 50.0f;
+        engine::graphics::MeshHelpers::CreatePlaneMesh(g_plane_mesh, planeHalfWidth);
+    }
 
-    g_targetTransform.rotation_ = engine::math::Quaternion::FORWARD;
-    g_targetTransform.position_.x_ = -30.0f;
-    g_targetTransform.position_.y_ = 30.0f;
-    constexpr float halfWidth = 0.5f;
-    MeshHelpers::CreateBoxMesh(g_targetBufferIds, halfWidth);
+    // Init target
+    {
+        engine::math::Transform transform;
+        transform.rotation_ = engine::math::Quaternion::FORWARD;
+        transform.position_.x_ = -30.0f;
+        transform.position_.y_ = 30.0f;
+        g_target_mesh.SetTransform(transform);
+        g_target_mesh.SetColor(engine::graphics::Color::ORANGE);
+
+        constexpr float halfWidth = 0.5f;
+        engine::graphics::MeshHelpers::CreateBoxMesh(g_target_mesh, halfWidth);
+    }
 }
 
 void InitCamera()
 {
     // Initialize the transform
     {
-        g_cameraTransform.rotation_ = engine::math::Quaternion::UP;
-        g_cameraTransform.position_.y_ = -15.0f;
-        g_cameraTransform.position_.z_ = -100.0f;
+        g_camera_transform.rotation_ = engine::math::Quaternion::UP;
+        g_camera_transform.position_.y_ = -15.0f;
+        g_camera_transform.position_.z_ = -100.0f;
     }
 
     // Initialize the perspective projection matrix
@@ -384,7 +400,7 @@ void InitCamera()
         static constexpr float zNear = 0.1f;
         static constexpr float zFar = 1000.0f;
 
-        g_perspectiveProjection = cy::Matrix4f::MatrixPerspective(fov, aspectRatio, zNear, zFar);
+        g_perspective_projection = cy::Matrix4f::MatrixPerspective(fov, aspectRatio, zNear, zFar);
     }
 }
 
@@ -425,10 +441,11 @@ void InitSkeletonMesh()
 {
     constexpr float halfWidth = 0.5f;
 
-    g_skeletonBufferIds = static_cast<BufferIdGroup*>(malloc(sizeof(BufferIdGroup) * g_skeleton->num_joints));
+    g_joint_meshes = new engine::graphics::Mesh[g_skeleton->num_joints];
     for (uint8_t i = 0; i < g_skeleton->num_joints; ++i)
     {
-        MeshHelpers::CreateBoxMesh(g_skeletonBufferIds[i], halfWidth);
+        g_joint_meshes[i].SetColor(engine::graphics::Color::TURQUOISE);
+        engine::graphics::MeshHelpers::CreateBoxMesh(g_joint_meshes[i], halfWidth);
     }
 }
 
@@ -442,68 +459,22 @@ void Render()
     glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
 
     // Bind the shaders
-    g_planeGLProgram.Bind();
+    g_GLProgram.Bind();
 
     // Set the view transformation
-    cy::Matrix4f::GetMatrixFromTransform(g_view, g_cameraTransform);
-    g_planeGLProgram.SetUniformMatrix4("g_transform_view", g_view.data);
+    cy::Matrix4f::GetMatrixFromTransform(g_view, g_camera_transform);
+    g_GLProgram.SetUniformMatrix4("g_transform_view", g_view.data);
 
     // Set the projection matrix
-    g_planeGLProgram.SetUniformMatrix4("g_transform_projection", g_perspectiveProjection.data);
+    g_GLProgram.SetUniformMatrix4("g_transform_projection", g_perspective_projection.data);
 
-    // Draw the floor
+    // Render the meshes
+    g_plane_mesh.Render(g_GLProgram);
+    g_target_mesh.Render(g_GLProgram);
+
+    for (uint8_t i = 0; i < g_skeleton->num_joints; ++i)
     {
-        // Set the model transformation
-        cy::Matrix4f model;
-        cy::Matrix4f::GetMatrixFromTransform(model, g_planeTransform);
-        g_planeGLProgram.SetUniformMatrix4("g_transform_model", model.data);
-
-        // Set the color
-        g_planeGLProgram.SetUniform("g_color", 0.4f, 0.4f, 0.4f);
-
-        glBindVertexArray(g_planeBufferIds.vertexArrayId);
-        glDrawElements(GL_TRIANGLES, MeshHelpers::NUM_INDICES_IN_PLANE, GL_UNSIGNED_BYTE, 0);
-    }
-
-    // Draw the skeleton
-    {
-        for (uint8_t i = 0; i < g_skeleton->num_joints; ++i)
-        {
-            // Set the model transformation
-            g_planeGLProgram.SetUniformMatrix4("g_transform_model", g_skeleton->local_to_world_transforms[i].data);
-
-            // Set the color
-            if (i == g_selectedJoint)
-            {
-                g_planeGLProgram.SetUniform("g_color", 0.7f, 0.7f, 0.0f);
-            }
-            else if (i == g_selectedEndEffector)
-            {
-                g_planeGLProgram.SetUniform("g_color", 0.8f, 0.2f, 0.0f);
-            }
-            else
-            {
-                //g_planeGLProgram.SetUniform("g_color", 0.2f, 0.5f, 1.0f);
-                g_planeGLProgram.SetUniform("g_color", 0.1f * i, 0.5f, 1.0f);
-            }
-
-            glBindVertexArray(g_skeletonBufferIds[i].vertexArrayId);
-            glDrawElements(GL_TRIANGLES, MeshHelpers::NUM_INDICES_IN_BOX, GL_UNSIGNED_BYTE, 0);
-        }
-    }
-
-    // Draw the target
-    {
-        // Set the model transformation
-        cy::Matrix4f model;
-        cy::Matrix4f::GetMatrixFromTransform(model, g_targetTransform);
-        g_planeGLProgram.SetUniformMatrix4("g_transform_model", model.data);
-
-        // Set the color
-        g_planeGLProgram.SetUniform("g_color", 0.75f, 0.5f, 0.0f);
-
-        glBindVertexArray(g_targetBufferIds.vertexArrayId);
-        glDrawElements(GL_TRIANGLES, MeshHelpers::NUM_INDICES_IN_BOX, GL_UNSIGNED_BYTE, 0);
+        g_joint_meshes[i].Render(g_GLProgram, g_skeleton->local_to_world_transforms[i].data);
     }
 }
 
@@ -515,9 +486,9 @@ void Update(float DeltaSeconds)
     static constexpr float decrement = 0.1f;
     static float mouseZ = 0.0f;
 
-    const float deltaMouseX = float(g_currMouseX - g_prevMouseX);
-    const float deltaMouseY = float(g_currMouseY - g_prevMouseY);
-    const float deltaMouseZ = float(g_currMouseZ - g_prevMouseZ);
+    const float deltaMouseX = float(g_curr_mouse_x - g_prev_mouse_x);
+    const float deltaMouseY = float(g_curr_mouse_y - g_prev_mouse_y);
+    const float deltaMouseZ = float(g_curr_mouse_z - g_prev_mouse_z);
 
     mouseZ = fabs(float(deltaMouseZ)) > fabs(mouseZ) ? float(deltaMouseZ) : mouseZ;
 
@@ -527,45 +498,45 @@ void Update(float DeltaSeconds)
     //UpdateSelection();
 
     // Reset skeleton
-    if (g_rPressed)
+    if (g_r_pressed)
     {
-        g_rPressed = false;
-		g_targetTransform.position_.x_ = -30.0f;
-		g_targetTransform.position_.y_ = 30.0f;
+        g_r_pressed = false;
+        g_target_mesh.GetTransform().position_.x_ = -30.0f;
+        g_target_mesh.GetTransform().position_.y_ = 30.0f;
 
         InitSkeletonTransforms();
-		UpdateSkeleton();
+        UpdateSkeleton();
     }
 
-    g_prevMouseX = g_currMouseX;
-    g_prevMouseY = g_currMouseY;
-    g_prevMouseZ = g_currMouseZ;
+    g_prev_mouse_x = g_curr_mouse_x;
+    g_prev_mouse_y = g_curr_mouse_y;
+    g_prev_mouse_z = g_curr_mouse_z;
     mouseZ -= mouseZ * decrement;
 }
 
 void UpdateRotationBasedOnInput(float i_delta_x, float i_delta_y)
 {
-    if (g_leftMouseButtonPressed)
+    if (g_left_mouse_button_pressed)
     {
         static constexpr float rotationDamping = DEGREES_TO_RADIANS(0.1f);
 
-        if (g_controlPressed)
+        if (g_control_pressed)
         {
             // Joint rotation
             if (abs(i_delta_x) > 0.0f)
             {
-				const engine::math::Quaternion roll(i_delta_x * rotationDamping, engine::math::Vec3D::UNIT_Z);
-				g_skeleton->joints[g_selectedJoint].local_to_parent.rotation_ = roll * g_skeleton->joints[g_selectedJoint].local_to_parent.rotation_;
-				g_skeleton->joints[g_selectedJoint].local_to_parent.rotation_.Normalize();
-				UpdateSkeleton();
+                const engine::math::Quaternion roll(i_delta_x * rotationDamping, engine::math::Vec3D::UNIT_Z);
+                g_skeleton->joints[g_selected_joint].local_to_parent.rotation_ = roll * g_skeleton->joints[g_selected_joint].local_to_parent.rotation_;
+                g_skeleton->joints[g_selected_joint].local_to_parent.rotation_.Normalize();
+                UpdateSkeleton();
             }
 
             if (abs(i_delta_y) > 0.0f)
             {
-				const engine::math::Quaternion pitch(i_delta_y * rotationDamping, engine::math::Vec3D::UNIT_X);
-				g_skeleton->joints[g_selectedJoint].local_to_parent.rotation_ = pitch * g_skeleton->joints[g_selectedJoint].local_to_parent.rotation_;
-				g_skeleton->joints[g_selectedJoint].local_to_parent.rotation_.Normalize();
-				UpdateSkeleton();
+                const engine::math::Quaternion pitch(i_delta_y * rotationDamping, engine::math::Vec3D::UNIT_X);
+                g_skeleton->joints[g_selected_joint].local_to_parent.rotation_ = pitch * g_skeleton->joints[g_selected_joint].local_to_parent.rotation_;
+                g_skeleton->joints[g_selected_joint].local_to_parent.rotation_.Normalize();
+                UpdateSkeleton();
             }
         }
         else
@@ -573,9 +544,9 @@ void UpdateRotationBasedOnInput(float i_delta_x, float i_delta_y)
             // Camera rotation
             if (abs(i_delta_x) > 0.0f)
             {
-				const engine::math::Quaternion yaw(i_delta_x * rotationDamping, engine::math::Vec3D::UNIT_Y);
-                g_cameraTransform.rotation_ = yaw * g_cameraTransform.rotation_;
-                g_cameraTransform.rotation_.Normalize();
+                const engine::math::Quaternion yaw(i_delta_x * rotationDamping, engine::math::Vec3D::UNIT_Y);
+                g_camera_transform.rotation_ = yaw * g_camera_transform.rotation_;
+                g_camera_transform.rotation_.Normalize();
             }
         }
     }
@@ -583,47 +554,47 @@ void UpdateRotationBasedOnInput(float i_delta_x, float i_delta_y)
 
 void UpdatePositionBasedOnInput(float i_delta_x, float i_delta_y, float i_delta_mouse_z)
 {
-    if (g_rightMouseButtonPressed)
+    if (g_right_mouse_button_pressed)
     {
         static constexpr float movementDamping = 0.05f;
 
-        if (g_altPressed)
+        if (g_alt_pressed)
         {
-            g_targetTransform.position_.x_ += i_delta_x * -movementDamping;
-            g_targetTransform.position_.y_ += i_delta_y * -movementDamping;
-			SolveFABRIK();
+            g_target_mesh.GetTransform().position_.x_ += i_delta_x * -movementDamping;
+            g_target_mesh.GetTransform().position_.y_ += i_delta_y * -movementDamping;
+            SolveFABRIK();
         }
         // Camera position
         else
         {
-            g_cameraTransform.position_.x_ += i_delta_x * movementDamping;
-            g_cameraTransform.position_.y_ += i_delta_y * -movementDamping;
+            g_camera_transform.position_.x_ += i_delta_x * movementDamping;
+            g_camera_transform.position_.y_ += i_delta_y * -movementDamping;
         }
     }
 
-    if (g_altPressed)
+    if (g_alt_pressed)
     {
-		g_targetTransform.position_.z_ += i_delta_mouse_z * 0.25f;
-		if (i_delta_mouse_z > 0.0f)
-		{
-			SolveFABRIK();
-		}
+        g_target_mesh.GetTransform().position_.z_ += i_delta_mouse_z * 0.25f;
+        if (i_delta_mouse_z > 0.0f)
+        {
+            SolveFABRIK();
+        }
     }
     else
     {
-        g_cameraTransform.position_.z_ += i_delta_mouse_z;
+        g_camera_transform.position_.z_ += i_delta_mouse_z;
     }
 }
 
 void UpdateSelection()
 {
-    if (g_leftMouseButtonPressed == false)
+    if (g_left_mouse_button_pressed == false)
     {
         return;
     }
 
-    const cy::Matrix4f screen = g_perspectiveProjection * g_view;
-    const cy::Point3f target_world_space(g_targetTransform.position_.x_, g_targetTransform.position_.y_, g_targetTransform.position_.z_);
+    const cy::Matrix4f screen = g_perspective_projection * g_view;
+    const cy::Point3f target_world_space(g_target_mesh.GetTransform().position_.x_, g_target_mesh.GetTransform().position_.y_, g_target_mesh.GetTransform().position_.z_);
 
     if (TestPointForSelection(target_world_space, screen))
     {
@@ -687,13 +658,13 @@ void UpdateSkeleton()
 
 void SolveFABRIK()
 {
-	// Reset to bind pose
-	InitSkeletonTransforms();
-	UpdateSkeleton();
+    // Reset to bind pose
+    InitSkeletonTransforms();
+    UpdateSkeleton();
 
     // Prepare FABRIK parameters
     engine::animation::FABRIKParams params;
-    params.target = g_targetTransform.position_;
+    params.target = g_target_mesh.GetTransform().position_;
     params.skeleton = g_skeleton;
 
     if (SKELETON_TYPE == engine::animation::ESkeletonType::SimpleChain)
@@ -703,28 +674,28 @@ void SolveFABRIK()
     }
     else if (SKELETON_TYPE == engine::animation::ESkeletonType::Humanoid)
     {
-        if (g_selectedEndEffector == engine::animation::Skeleton::LEFT_FOOT)
+        if (g_selected_end_effector == engine::animation::Skeleton::LEFT_FOOT)
         {
             params.root_joint_index = engine::animation::Skeleton::UP_LEFT_LEG;
         }
-        else if (g_selectedEndEffector == engine::animation::Skeleton::RIGHT_FOOT)
+        else if (g_selected_end_effector == engine::animation::Skeleton::RIGHT_FOOT)
         {
             params.root_joint_index = engine::animation::Skeleton::UP_RIGHT_LEG;
         }
-        else if (g_selectedEndEffector == engine::animation::Skeleton::LEFT_HAND)
+        else if (g_selected_end_effector == engine::animation::Skeleton::LEFT_HAND)
         {
             params.root_joint_index = engine::animation::Skeleton::UP_LEFT_ARM;
         }
-        else if (g_selectedEndEffector == engine::animation::Skeleton::RIGHT_HAND)
+        else if (g_selected_end_effector == engine::animation::Skeleton::RIGHT_HAND)
         {
             params.root_joint_index = engine::animation::Skeleton::UP_RIGHT_ARM;
         }
-        params.end_joint_index = g_selectedEndEffector;
+        params.end_joint_index = g_selected_end_effector;
     }
 
     // Solve
-	uint8_t num_iterations = engine::animation::FABRIK(params);
-	LOG("NumIterations:%d", num_iterations);
+    uint8_t num_iterations = engine::animation::FABRIK(params);
+    LOG("NumIterations:%d", num_iterations);
 }
 
 void PrintMatrix(const cy::Matrix4f& i_matrix)
@@ -738,7 +709,7 @@ void PrintMatrix(const cy::Matrix4f& i_matrix)
 bool TestPointForSelection(const cy::Point3f& i_point_world_space, const cy::Matrix4f& i_screen)
 {
     const cy::Point4f target_screen_space = i_screen * i_point_world_space;
-    const cy::Point2f mouse_screen_space2d(g_mouseScreenSpaceX, g_mouseScreenSpaceY);
+    const cy::Point2f mouse_screen_space2d(g_mouse_screen_space_x, g_mouse_screen_space_y);
     const cy::Point2f target_screen_space2d(target_screen_space.x / target_screen_space.w, -target_screen_space.y / target_screen_space.w);
     const cy::Point2f delta = target_screen_space2d - mouse_screen_space2d;
     return delta.LengthSquared() < SELECTION_RADIUS;

@@ -162,6 +162,9 @@
     <ClCompile Include="Animation\FABRIK.cpp" />
     <ClCompile Include="Animation\Skeleton.cpp" />
     <ClCompile Include="EntryPoint.cpp" />
+    <ClCompile Include="Graphics\Color.cpp" />
+    <ClCompile Include="Graphics\Mesh.cpp" />
+    <ClCompile Include="Graphics\MeshHelpers.cpp" />
     <ClCompile Include="Math\Mat44.cpp" />
     <ClCompile Include="Math\MathUtil.cpp" />
     <ClCompile Include="Math\Quaternion.cpp" />
@@ -171,11 +174,13 @@
     <ClCompile Include="Math\Vec4D.cpp" />
     <ClCompile Include="Utils\lodepng.cpp" />
     <ClCompile Include="Utils\logger.cpp" />
-    <ClCompile Include="Utils\MeshHelpers.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Animation\FABRIK.h" />
     <ClInclude Include="Animation\Skeleton.h" />
+    <ClInclude Include="Graphics\Color.h" />
+    <ClInclude Include="Graphics\Mesh.h" />
+    <ClInclude Include="Graphics\MeshHelpers.h" />
     <ClInclude Include="Math\Mat44-inl.h" />
     <ClInclude Include="Math\Mat44.h" />
     <ClInclude Include="Math\MathUtil.h" />
@@ -196,7 +201,6 @@
     <ClInclude Include="Utils\cyTriMesh.h" />
     <ClInclude Include="Utils\lodepng.h" />
     <ClInclude Include="Utils\logger.h" />
-    <ClInclude Include="Utils\MeshHelpers.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -13,7 +13,13 @@ namespace engine {
 namespace math {
     class Vec3D;
 }
+namespace graphics {
+    class Mesh;
 }
+}
+
+namespace engine {
+namespace graphics {
 
 struct BufferIdGroup
 {
@@ -27,10 +33,10 @@ struct BufferIdGroup
 class MeshHelpers
 {
 public:
-    static void CreatePlaneMesh(BufferIdGroup& o_bufferIds,
+    static void CreatePlaneMesh(Mesh& o_mesh,
         float i_halfWidth);
 
-    static void CreateBoxMesh(BufferIdGroup& o_bufferIds,
+    static void CreateBoxMesh(Mesh& o_mesh,
         float i_halfWidth);
 
     static const uint8_t NUM_INDICES_IN_PLANE;
@@ -45,5 +51,7 @@ private:
 
 }; // class MeshHelpers
 
+} // namespace graphics
+} // namespace engine
 
 #endif // MESH_HELPERS_H_

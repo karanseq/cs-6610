@@ -3,28 +3,32 @@
 // Library includes
 #include <stdint.h>
 
-// Util includes
+// Engine includes
+#include "Graphics/Mesh.h"
 #include "Math/Vec3D.h"
+
+namespace engine {
+namespace graphics {
 
 // Static member initialization
 const uint8_t MeshHelpers::NUM_INDICES_IN_PLANE = 6;
 const uint8_t MeshHelpers::NUM_INDICES_IN_BOX = 36;
 
-void MeshHelpers::CreatePlaneMesh(BufferIdGroup& o_bufferIds,
+void MeshHelpers::CreatePlaneMesh(Mesh& o_mesh,
     float i_halfWidth)
 {
     // Create a vertex array object and make it active
     {
         constexpr GLsizei arrayCount = 1;
-        glGenVertexArrays(arrayCount, &o_bufferIds.vertexArrayId);
-        glBindVertexArray(o_bufferIds.vertexArrayId);
+        glGenVertexArrays(arrayCount, &o_mesh.vertex_array_id_);
+        glBindVertexArray(o_mesh.vertex_array_id_);
     }
 
     // Create a vertex buffer object and make it active
     {
         constexpr GLsizei bufferCount = 1;
-        glGenBuffers(bufferCount, &o_bufferIds.vertexBufferId);
-        glBindBuffer(GL_ARRAY_BUFFER, o_bufferIds.vertexBufferId);
+        glGenBuffers(bufferCount, &o_mesh.vertex_buffer_id_);
+        glBindBuffer(GL_ARRAY_BUFFER, o_mesh.vertex_buffer_id_);
     }
 
     // Assign data to the vertex buffer
@@ -52,32 +56,33 @@ void MeshHelpers::CreatePlaneMesh(BufferIdGroup& o_bufferIds,
     // Create an index buffer object and make it active
     {
         constexpr GLsizei bufferCount = 1;
-        glGenBuffers(bufferCount, &o_bufferIds.indexBufferId);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, o_bufferIds.indexBufferId);
+        glGenBuffers(bufferCount, &o_mesh.index_buffer_id_);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, o_mesh.index_buffer_id_);
     }
 
     // Assign data to the index buffer
     {
+        o_mesh.num_indices_ = NUM_INDICES_IN_PLANE;
         constexpr uint8_t indices[NUM_INDICES_IN_PLANE] = { 0, 1, 2, 0, 2, 3 };
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
     }
 }
 
-void MeshHelpers::CreateBoxMesh(BufferIdGroup& o_bufferIds,
+void MeshHelpers::CreateBoxMesh(Mesh& o_mesh,
     float i_halfWidth)
 {
     // Create a vertex array object and make it active
     {
         constexpr GLsizei arrayCount = 1;
-        glGenVertexArrays(arrayCount, &o_bufferIds.vertexArrayId);
-        glBindVertexArray(o_bufferIds.vertexArrayId);
+        glGenVertexArrays(arrayCount, &o_mesh.vertex_array_id_);
+        glBindVertexArray(o_mesh.vertex_array_id_);
     }
 
     // Create a vertex buffer object and make it active
     {
         constexpr GLsizei bufferCount = 1;
-        glGenBuffers(bufferCount, &o_bufferIds.vertexBufferId);
-        glBindBuffer(GL_ARRAY_BUFFER, o_bufferIds.vertexBufferId);
+        glGenBuffers(bufferCount, &o_mesh.vertex_buffer_id_);
+        glBindBuffer(GL_ARRAY_BUFFER, o_mesh.vertex_buffer_id_);
     }
 
     // Assign data to the vertex buffer
@@ -109,12 +114,13 @@ void MeshHelpers::CreateBoxMesh(BufferIdGroup& o_bufferIds,
     // Create an index buffer object and make it active
     {
         constexpr GLsizei bufferCount = 1;
-        glGenBuffers(bufferCount, &o_bufferIds.indexBufferId);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, o_bufferIds.indexBufferId);
+        glGenBuffers(bufferCount, &o_mesh.index_buffer_id_);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, o_mesh.index_buffer_id_);
     }
 
     // Assign data to the index buffer
     {
+        o_mesh.num_indices_ = NUM_INDICES_IN_BOX;
         constexpr uint8_t indices[NUM_INDICES_IN_BOX] = {
             // front
             0, 1, 2,
@@ -138,3 +144,7 @@ void MeshHelpers::CreateBoxMesh(BufferIdGroup& o_bufferIds,
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
     }
 }
+
+} // namespace graphics
+} // namespace engine
+

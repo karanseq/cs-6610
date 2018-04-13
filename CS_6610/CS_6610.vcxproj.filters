@@ -31,6 +31,12 @@
     <Filter Include="Source Files\Animation">
       <UniqueIdentifier>{68ffaa54-29c6-4013-b792-14c36448f381}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\Graphics">
+      <UniqueIdentifier>{2925127e-c8fb-4bcb-9b8e-2bb792a1df42}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Graphics">
+      <UniqueIdentifier>{29831007-f21e-403f-b25c-ae5b87ee49eb}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="EntryPoint.cpp">
@@ -60,9 +66,6 @@
     <ClCompile Include="Animation\Skeleton.cpp">
       <Filter>Source Files\Animation</Filter>
     </ClCompile>
-    <ClCompile Include="Utils\MeshHelpers.cpp">
-      <Filter>Source Files\Utils</Filter>
-    </ClCompile>
     <ClCompile Include="Utils\lodepng.cpp">
       <Filter>Source Files\Utils</Filter>
     </ClCompile>
@@ -71,6 +74,15 @@
     </ClCompile>
     <ClCompile Include="Utils\logger.cpp">
       <Filter>Source Files\Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="Graphics\Mesh.cpp">
+      <Filter>Source Files\Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="Graphics\Color.cpp">
+      <Filter>Source Files\Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="Graphics\MeshHelpers.cpp">
+      <Filter>Source Files\Graphics</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -116,9 +128,6 @@
     <ClInclude Include="Animation\Skeleton.h">
       <Filter>Header Files\Animation</Filter>
     </ClInclude>
-    <ClInclude Include="Utils\MeshHelpers.h">
-      <Filter>Header Files\Utils</Filter>
-    </ClInclude>
     <ClInclude Include="Utils\cyCore.h">
       <Filter>Header Files\Utils</Filter>
     </ClInclude>
@@ -142,6 +151,15 @@
     </ClInclude>
     <ClInclude Include="Animation\FABRIK.h">
       <Filter>Header Files\Animation</Filter>
+    </ClInclude>
+    <ClInclude Include="Graphics\Mesh.h">
+      <Filter>Header Files\Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Graphics\Color.h">
+      <Filter>Header Files\Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Graphics\MeshHelpers.h">
+      <Filter>Header Files\Graphics</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

@@ -32,11 +32,6 @@ void Skeleton::UpdateJointTransform(uint8_t i_index)
             world_to_local_transforms[i_index] = local_to_world_transforms[i_index].GetInverse();
         }
     }
-
-    // TODO
-    //// Update world positions
-    //const cy::Point3f joint_trans = local_to_world_transforms[i_index].GetTrans();
-    //joints_world_space[i_index].set(joint_trans.x, joint_trans.y, joint_trans.z);
 }
 
 void Skeleton::UpdateChain(uint8_t i_start_index, uint8_t i_end_index)
