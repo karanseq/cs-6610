@@ -378,6 +378,8 @@ void InitMeshes()
         transform.position_.y_ = 30.0f;
         g_target_mesh.SetTransform(transform);
         g_target_mesh.SetColor(engine::graphics::Color::ORANGE);
+        g_target_mesh.SetSelectedColor(engine::graphics::Color::YELLOW);
+        g_target_mesh.InitSelection(engine::graphics::EMeshSelectionType::Editable);
 
         constexpr float halfWidth = 0.5f;
         engine::graphics::MeshHelpers::CreateBoxMesh(g_target_mesh, halfWidth);
@@ -474,7 +476,7 @@ void Render()
 
     for (uint8_t i = 0; i < g_skeleton->num_joints; ++i)
     {
-        g_joint_meshes[i].Render(g_GLProgram, g_skeleton->local_to_world_transforms[i].data);
+        g_joint_meshes[i].Render(g_GLProgram, g_skeleton->local_to_world_transforms[i]);
     }
 }
 
@@ -598,10 +600,12 @@ void UpdateSelection()
 
     if (TestPointForSelection(target_world_space, screen))
     {
+        g_target_mesh.SetIsSelected(true);
         LOG("Target selected!");
     }
     else
     {
+        g_target_mesh.SetIsSelected(false);
         LOG("Target not found!");
     }
 
@@ -695,7 +699,9 @@ void SolveFABRIK()
 
     // Solve
     uint8_t num_iterations = engine::animation::FABRIK(params);
+#if 0
     LOG("NumIterations:%d", num_iterations);
+#endif
 }
 
 void PrintMatrix(const cy::Matrix4f& i_matrix)

@@ -19,8 +19,8 @@ namespace math {
 
 namespace animation {
 
-enum class ESkeletonType : uint8_t {
-
+enum class ESkeletonType : uint8_t
+{
     SimpleChain,
     Humanoid,
     Palm,

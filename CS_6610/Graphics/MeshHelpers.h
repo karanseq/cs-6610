@@ -21,26 +21,18 @@ namespace graphics {
 namespace engine {
 namespace graphics {
 
-struct BufferIdGroup
-{
-    GLuint vertexArrayId = -1;
-    GLuint vertexBufferId = -1;
-    GLuint normalBufferId = -1;
-    GLuint texCoordId = -1;
-    GLuint indexBufferId = -1;
-};
-
 class MeshHelpers
 {
 public:
-    static void CreatePlaneMesh(Mesh& o_mesh,
-        float i_halfWidth);
+    static void CreatePlaneMesh(Mesh& o_mesh, float i_half_width);
 
-    static void CreateBoxMesh(Mesh& o_mesh,
-        float i_halfWidth);
+    static void CreateBoxMesh(Mesh& o_mesh, float i_half_width);
 
-    static const uint8_t NUM_INDICES_IN_PLANE;
-    static const uint8_t NUM_INDICES_IN_BOX;
+    static void CreateArrowMesh(Mesh& o_mesh, float i_height, float i_width);
+
+    static constexpr uint8_t NUM_INDICES_IN_PLANE = 6;
+    static constexpr uint8_t NUM_INDICES_IN_BOX = 36;
+    static constexpr uint8_t NUM_INDICES_IN_ARROW = 9;
 
 private:
     MeshHelpers() = delete;
