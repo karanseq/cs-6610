@@ -27,12 +27,14 @@
 
 //~====================================================================================================
 // Helpers
+
 #define DEGREES_TO_RADIANS(deg) ((deg) * M_PI / 180.0f)
 #define RADIANS_TO_DEGREES(rad) ((rad) * 180.0f / M_PI)
 
 
 //~====================================================================================================
 // Constants
+
 constexpr char* WINDOW_TITLE = "Karan's CS_6610 Playground";
 constexpr char* CONTENT_PATH = "..\\CS_6610\\Content\\";
 
@@ -59,6 +61,7 @@ constexpr engine::animation::ESkeletonType SKELETON_TYPE = engine::animation::ES
 
 //~====================================================================================================
 // Counters
+
 std::chrono::time_point<std::chrono::steady_clock> LAST_DRAW_TIME_POINT;
 bool g_left_mouse_button_pressed = false;
 bool g_right_mouse_button_pressed = false;
@@ -66,8 +69,8 @@ bool g_left_mouse_dragging = false;
 bool g_right_mouse_dragging = false;
 bool g_control_pressed = false;
 bool g_alt_pressed = false;
-bool g_f_pressed = false;
 bool g_r_pressed = false;
+bool g_target_updated = false;
 int g_curr_mouse_x = 0;
 int g_curr_mouse_y = 0;
 int g_curr_mouse_z = 0;
@@ -151,6 +154,7 @@ void HandleMouseDrag();
 // Other functions
 void SolveFABRIK();
 void PrintMatrix(const cy::Matrix4f& i_matrix);
+bool TestMeshesForSelection(const engine::math::Vec2D& i_mouse_screen_space2d, const cy::Matrix4f& i_screen);
 bool TestPointForSelection(const cy::Point3f& i_point_world_space, const cy::Matrix4f& i_screen);
 void ScreenCoordsToWorldRay(
     float i_mouse_x, float i_mouse_y,
@@ -263,27 +267,7 @@ void KeyboardFunc(unsigned char key, int x, int y)
     {
         glutLeaveMainLoop();
     }
-    else if (key == 'q')
-    {
-        g_joint_meshes[g_selected_joint].SetColor(engine::graphics::Color::TURQUOISE);
-        g_selected_joint = g_selected_joint < g_skeleton->num_joints - 1 ? g_selected_joint + 1 : 0;
-        g_joint_meshes[g_selected_joint].SetColor(engine::graphics::Color::CYAN);
 
-    }
-    else if (key == 'w')
-    {
-        g_joint_meshes[g_selected_joint].SetColor(engine::graphics::Color::TURQUOISE);
-        g_selected_joint = g_selected_joint == 0 ? g_skeleton->num_joints - 1 : g_selected_joint - 1;
-        g_joint_meshes[g_selected_joint].SetColor(engine::graphics::Color::CYAN);
-    }
-    else if (key == 'e')
-    {
-        g_joint_meshes[g_selected_end_effector].SetColor(engine::graphics::Color::TURQUOISE);
-        g_selected_end_effector = g_selected_end_effector <= engine::animation::Skeleton::LEFT_FOOT ? engine::animation::Skeleton::RIGHT_HAND : g_selected_end_effector - 1;
-        g_joint_meshes[g_selected_end_effector].SetColor(engine::graphics::Color::MAGENTA);
-    }
-
-    g_f_pressed = key == 'f';
     g_r_pressed = key == 'r';
 }
 
@@ -536,6 +520,12 @@ void Update(float DeltaSeconds)
     UpdateRotationBasedOnInput(deltaMouseX, deltaMouseY);
 //    UpdatePositionBasedOnInput(deltaMouseX, deltaMouseY, mouseZ);
 
+    if (g_target_updated)
+    {
+        g_target_updated = false;
+        SolveFABRIK();
+    }
+
     // Reset skeleton
     if (g_r_pressed)
     {
@@ -551,7 +541,7 @@ void Update(float DeltaSeconds)
 
 void UpdateRotationBasedOnInput(float i_delta_x, float i_delta_y)
 {
-    if (g_right_mouse_button_pressed)
+    if (g_left_mouse_dragging && g_selected_mesh == nullptr)
     {
         static constexpr float rotationDamping = DEGREES_TO_RADIANS(0.1f);
 
@@ -583,6 +573,13 @@ void UpdateRotationBasedOnInput(float i_delta_x, float i_delta_y)
                 g_camera_transform.rotation_ = yaw * g_camera_transform.rotation_;
                 g_camera_transform.rotation_.Normalize();
             }
+
+            //if (abs(i_delta_y) > 0.0f)
+            //{
+            //    const engine::math::Quaternion pitch(i_delta_y * rotationDamping, engine::math::Vec3D::UNIT_X);
+            //    g_camera_transform.rotation_ = pitch * g_camera_transform.rotation_;
+            //    g_camera_transform.rotation_.Normalize();
+            //}
         }
     }
 }
@@ -684,7 +681,17 @@ void Reset()
 }
 
 void HandleMouseDown()
-{}
+{
+    bool click_consumed = false;
+
+    const cy::Matrix4f screen = g_projection * g_view;
+    const engine::math::Vec2D mouse_screen_space2d(g_curr_mouse_screen_space_x, g_curr_mouse_screen_space_y);
+
+    if (g_selected_mesh != nullptr)
+    {
+        click_consumed = TestMeshesForSelection(mouse_screen_space2d, screen);
+    }
+}
 
 void HandleMouseUp()
 {
@@ -694,41 +701,17 @@ void HandleMouseUp()
     bool click_consumed = false;
 
     // Don't do any selection if the mouse was being dragged
-    if (g_left_mouse_dragging == false &&
-        g_right_mouse_dragging == false)
+    if (!(g_left_mouse_dragging ||
+        g_right_mouse_dragging))
     {
-        // Deselect the previously selected mesh, if any
-        if (g_selected_mesh != nullptr)
-        {
-            g_selected_mesh->SetIsSelected(false);
-            g_selected_mesh = false;
-        }
-
-        // Offer the target mesh first dibs
-        if (g_target_mesh.HandleMouseClick(mouse_screen_space2d, screen))
-        {
-            click_consumed = true;
-            g_selected_mesh = &g_target_mesh;
-        }
-        // Joint meshes get second dibs
-        else
-        {
-            for (uint8_t i = 0; i < g_skeleton->num_joints; ++i)
-            {
-                if (TestPointForSelection(g_skeleton->local_to_world_transforms[i].GetTrans(), screen))
-                {
-                    g_joint_meshes[i].SetIsSelected(true);
-                    click_consumed = true;
-                    g_selected_mesh = &g_joint_meshes[i];
-                    break;
-                }
-            }
-        }
+        click_consumed = TestMeshesForSelection(mouse_screen_space2d, screen);
     }
 }
 
 void HandleMouseDrag()
 {
+    // Translate/rotate the selected mesh
+    // Meshes can only be transformed using the left mouse button
     if (g_left_mouse_dragging &&
         g_selected_mesh != nullptr)
     {
@@ -738,23 +721,21 @@ void HandleMouseDrag()
         const cy::Point4f camera_forward = view.GetColumn(2);
         const cy::Point4f camera_right = view.GetColumn(0);
 
-        cy::Matrix4f model;
-        cy::Matrix4f::GetMatrixFromTransform(model, g_selected_mesh->GetTransform());
-
-        const cy::Point4f mesh_forward = model.GetColumn(2);
-        const cy::Point4f mesh_right = model.GetColumn(0);
-
-        const float dot = camera_forward.Dot(mesh_right);
-
         const float delta_mouse_x = g_curr_mouse_screen_space_x - g_prev_mouse_screen_space_x;
         const float delta_mouse_y = g_curr_mouse_screen_space_y - g_prev_mouse_screen_space_y;
 
-        g_selected_mesh->GetTransform().position_.x_ += (1.0f - dot) * delta_mouse_x * -5.0f;
-        g_selected_mesh->GetTransform().position_.z_ += dot * delta_mouse_x * 5.0f;
-        g_selected_mesh->GetTransform().position_.y_ += -delta_mouse_y * 5.0f;
+        constexpr float input_multiplier = 40.0f;
+        g_selected_mesh->GetTransform().position_.x_ += camera_right.x * delta_mouse_x * input_multiplier;
+        g_selected_mesh->GetTransform().position_.y_ += delta_mouse_y * -input_multiplier;
+        g_selected_mesh->GetTransform().position_.z_ += camera_right.z * delta_mouse_x * -input_multiplier;
 
-        LOG("DOT:%f", dot);
-        LOG("camera_forward:%f, %f, %f", camera_forward.x, camera_forward.y, camera_forward.z);
+        g_target_updated = g_selected_mesh == &g_target_mesh;
+
+        //cy::Matrix4f model;
+        //cy::Matrix4f::GetMatrixFromTransform(model, g_selected_mesh->GetTransform());
+
+        //const cy::Point3f camera_to_mesh_world_space = model.GetTrans() - view.GetTrans();
+        //LOG("CameraToMesh:%f", camera_to_mesh_world_space.Length());
     }
 }
 
@@ -808,6 +789,41 @@ void PrintMatrix(const cy::Matrix4f& i_matrix)
     LOG("%f %f %f %f", i_matrix.data[4], i_matrix.data[5], i_matrix.data[6], i_matrix.data[7]);
     LOG("%f %f %f %f", i_matrix.data[8], i_matrix.data[9], i_matrix.data[10], i_matrix.data[11]);
     LOG("%f %f %f %f", i_matrix.data[12], i_matrix.data[13], i_matrix.data[14], i_matrix.data[15]);
+}
+
+bool TestMeshesForSelection(const engine::math::Vec2D& i_mouse_screen_space2d, const cy::Matrix4f& i_screen)
+{
+    bool click_consumed = false;
+
+    // Deselect the previously selected mesh, if any
+    if (g_selected_mesh != nullptr)
+    {
+        g_selected_mesh->SetIsSelected(false);
+        g_selected_mesh = false;
+    }
+
+    // Offer the target mesh first dibs
+    if (g_target_mesh.HandleMouseClick(i_mouse_screen_space2d, i_screen))
+    {
+        click_consumed = true;
+        g_selected_mesh = &g_target_mesh;
+    }
+    // Joint meshes get second dibs
+    else
+    {
+        for (uint8_t i = 0; i < g_skeleton->num_joints; ++i)
+        {
+            if (TestPointForSelection(g_skeleton->local_to_world_transforms[i].GetTrans(), i_screen))
+            {
+                g_joint_meshes[i].SetIsSelected(true);
+                click_consumed = true;
+                g_selected_mesh = &g_joint_meshes[i];
+                break;
+            }
+        }
+    }
+
+    return click_consumed;
 }
 
 bool TestPointForSelection(const cy::Point3f& i_point_world_space, const cy::Matrix4f& i_screen)
