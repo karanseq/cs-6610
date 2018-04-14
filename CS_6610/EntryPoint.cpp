@@ -41,6 +41,7 @@ constexpr char* CONTENT_PATH = "..\\CS_6610\\Content\\";
 constexpr char* PLANE_VERTEX_SHADER_PATH = "..\\CS_6610\\Content\\plane_vertex_shader.glsl";
 constexpr char* PLANE_FRAGMENT_SHADER_PATH = "..\\CS_6610\\Content\\plane_fragment_shader.glsl";
 
+constexpr uint8_t MAX_JOINT_INDEX = 255;
 constexpr uint8_t CONTENT_PATH_LENGTH = 22;
 constexpr uint16_t MAX_PATH_LENGTH = 1024;
 constexpr uint16_t WINDOW_WIDTH = 1024;
@@ -81,7 +82,7 @@ float g_curr_mouse_screen_space_x = 0;
 float g_curr_mouse_screen_space_y = 0;
 float g_prev_mouse_screen_space_x = 0;
 float g_prev_mouse_screen_space_y = 0;
-uint8_t g_selected_joint = 0;
+uint8_t g_selected_joint = MAX_JOINT_INDEX;
 uint8_t g_selected_end_effector = 0;
 
 
@@ -142,8 +143,6 @@ void Render();
 void Update(float DeltaSeconds);
 void UpdateRotationBasedOnInput(float i_delta_x, float i_delta_y);
 void UpdatePositionBasedOnInput(float i_delta_x, float i_delta_y, float i_delta_mouse_z);
-void UpdateSelection();
-void UpdateSkeleton();
 void Reset();
 
 // Mouse functions
@@ -156,19 +155,6 @@ void SolveFABRIK();
 void PrintMatrix(const cy::Matrix4f& i_matrix);
 bool TestMeshesForSelection(const engine::math::Vec2D& i_mouse_screen_space2d, const cy::Matrix4f& i_screen);
 bool TestPointForSelection(const cy::Point3f& i_point_world_space, const cy::Matrix4f& i_screen);
-void ScreenCoordsToWorldRay(
-    float i_mouse_x, float i_mouse_y,
-    cy::Matrix4f& i_view, cy::Matrix4f& i_projection,
-    cy::Point3f& o_origin, cy::Point3f& o_direction
-);
-bool TestRayOBBIntersection(
-    const cy::Point3f& i_ray_origin,
-    const cy::Point3f& i_ray_direction,
-    const cy::Point3f& i_aabb_min,
-    const cy::Point3f& i_aabb_max,
-    const cy::Matrix4f& i_model,
-    float& o_intersection_distance
-);
 
 
 //~====================================================================================================
@@ -443,7 +429,7 @@ void InitSkeleton()
 
     engine::animation::Skeleton::CreateSkeleton(g_skeleton, SKELETON_TYPE);
 
-    UpdateSkeleton();
+    g_skeleton->UpdateChain();
     InitSkeletonMesh();
 }
 
@@ -520,7 +506,7 @@ void Update(float DeltaSeconds)
 
     // Respond to input
     UpdateRotationBasedOnInput(deltaMouseX, deltaMouseY);
-//    UpdatePositionBasedOnInput(deltaMouseX, deltaMouseY, mouseZ);
+    UpdatePositionBasedOnInput(deltaMouseX, deltaMouseY, mouseZ);
 
     if (g_target_updated)
     {
@@ -543,11 +529,12 @@ void Update(float DeltaSeconds)
 
 void UpdateRotationBasedOnInput(float i_delta_x, float i_delta_y)
 {
-    if (g_left_mouse_dragging && g_selected_mesh == nullptr)
-    {
-        static constexpr float rotationDamping = DEGREES_TO_RADIANS(0.1f);
+    static constexpr float rotationDamping = DEGREES_TO_RADIANS(0.1f);
 
-        if (g_control_pressed)
+    if (g_left_mouse_dragging)
+    {
+        // First dibs to skeleton
+        if (g_selected_joint < MAX_JOINT_INDEX)
         {
             // Joint rotation
             if (abs(i_delta_x) > 0.0f)
@@ -555,7 +542,7 @@ void UpdateRotationBasedOnInput(float i_delta_x, float i_delta_y)
                 const engine::math::Quaternion roll(i_delta_x * rotationDamping, engine::math::Vec3D::UNIT_Z);
                 g_skeleton->joints[g_selected_joint].local_to_parent.rotation_ = roll * g_skeleton->joints[g_selected_joint].local_to_parent.rotation_;
                 g_skeleton->joints[g_selected_joint].local_to_parent.rotation_.Normalize();
-                UpdateSkeleton();
+                g_skeleton->UpdateChain();
             }
 
             if (abs(i_delta_y) > 0.0f)
@@ -563,10 +550,11 @@ void UpdateRotationBasedOnInput(float i_delta_x, float i_delta_y)
                 const engine::math::Quaternion pitch(i_delta_y * rotationDamping, engine::math::Vec3D::UNIT_X);
                 g_skeleton->joints[g_selected_joint].local_to_parent.rotation_ = pitch * g_skeleton->joints[g_selected_joint].local_to_parent.rotation_;
                 g_skeleton->joints[g_selected_joint].local_to_parent.rotation_.Normalize();
-                UpdateSkeleton();
+                g_skeleton->UpdateChain();
             }
         }
-        else
+        // Second dibs to camera
+        else if (g_selected_mesh == nullptr)
         {
             // Camera rotation
             if (abs(i_delta_x) > 0.0f)
@@ -592,85 +580,11 @@ void UpdatePositionBasedOnInput(float i_delta_x, float i_delta_y, float i_delta_
     {
         static constexpr float movementDamping = 0.05f;
 
-        if (g_alt_pressed)
-        {
-            g_target_mesh.GetTransform().position_.x_ += i_delta_x * -movementDamping;
-            g_target_mesh.GetTransform().position_.y_ += i_delta_y * -movementDamping;
-            SolveFABRIK();
-        }
-        // Camera position
-        else
-        {
-            g_camera_transform.position_.x_ += i_delta_x * movementDamping;
-            g_camera_transform.position_.y_ += i_delta_y * -movementDamping;
-        }
+        g_camera_transform.position_.x_ += i_delta_x * movementDamping;
+        g_camera_transform.position_.y_ += i_delta_y * -movementDamping;
     }
 
-    if (g_alt_pressed)
-    {
-        g_target_mesh.GetTransform().position_.z_ += i_delta_mouse_z * 0.25f;
-        if (i_delta_mouse_z > 0.0f)
-        {
-            SolveFABRIK();
-        }
-    }
-    else
-    {
-        g_camera_transform.position_.z_ += i_delta_mouse_z;
-    }
-}
-
-void UpdateSelection()
-{
-    //http://www.opengl-tutorial.org/miscellaneous/clicking-on-objects/picking-with-custom-ray-obb-function/
-
-    //cy::Point3f ray_origin;
-    //cy::Point3f ray_direction;
-    //ScreenCoordsToWorldRay(
-    //    g_mouseScreenSpaceX, g_mouseScreenSpaceY,
-    //    g_view, g_perspectiveProjection,
-    //    ray_origin, ray_direction
-    //);
-
-    //float intersection_distance = 0.0f;
-    //const cy::Point3f aabb_min(-g_targetExtents.x_ * 2.0f, -g_targetExtents.y_ * 2.0f, -g_targetExtents.z_ * 2.0f);
-    //const cy::Point3f aabb_max = -aabb_min;
-    //cy::Matrix4f model;
-    //cy::Matrix4f::GetMatrixFromTransform(model, g_targetTransform);
-
-    //bool intersection_found = TestRayOBBIntersection(
-    //    ray_origin,
-    //    ray_direction,
-    //    aabb_min,
-    //    aabb_max,
-    //    model,
-    //    intersection_distance
-    //);
-
-    //if (intersection_found)
-    //{
-    //    LOG("Found intersection with target at %f units!", intersection_distance);
-    //}
-    //else
-    //{
-    //    LOG("Target not intersected!");
-    //}
-}
-
-void UpdateSkeleton()
-{
-    // Update joint transforms
-    for (uint8_t i = 0; i < g_skeleton->num_joints; ++i)
-    {
-        g_skeleton->UpdateJointTransform(i);
-    }
-
-    // Update world positions of all joints
-    for (uint8_t i = 0; i < g_skeleton->num_joints; ++i)
-    {
-        const cy::Point3f joint_trans = g_skeleton->local_to_world_transforms[i].GetTrans();
-        g_skeleton->joints_world_space[i].set(joint_trans.x, joint_trans.y, joint_trans.z);
-    }
+    g_camera_transform.position_.z_ += i_delta_mouse_z;
 }
 
 void Reset()
@@ -679,7 +593,7 @@ void Reset()
     g_target_mesh.GetTransform().position_.y_ = 30.0f;
 
     InitSkeletonTransforms();
-    UpdateSkeleton();
+    g_skeleton->UpdateChain();
 }
 
 void HandleMouseDown()
@@ -744,8 +658,9 @@ void HandleMouseDrag()
 void SolveFABRIK()
 {
     // Reset to bind pose
-    InitSkeletonTransforms();
-    UpdateSkeleton();
+    g_skeleton->ResetToCachedPose();
+    g_skeleton->UpdateChain();
+    g_skeleton->UpdateJointWorldSpacePositions();
 
     // Prepare FABRIK parameters
     engine::animation::FABRIKParams params;
@@ -802,6 +717,7 @@ bool TestMeshesForSelection(const engine::math::Vec2D& i_mouse_screen_space2d, c
     {
         g_selected_mesh->SetIsSelected(false);
         g_selected_mesh = false;
+        g_selected_joint = MAX_JOINT_INDEX;
     }
 
     // Offer the target mesh first dibs
@@ -820,6 +736,7 @@ bool TestMeshesForSelection(const engine::math::Vec2D& i_mouse_screen_space2d, c
                 g_joint_meshes[i].SetIsSelected(true);
                 click_consumed = true;
                 g_selected_mesh = &g_joint_meshes[i];
+                g_selected_joint = i;
                 break;
             }
         }
@@ -835,135 +752,4 @@ bool TestPointForSelection(const cy::Point3f& i_point_world_space, const cy::Mat
     const cy::Point2f mesh_screen_space2d(point_screen_space.x / point_screen_space.w, -point_screen_space.y / point_screen_space.w);
     const cy::Point2f delta = mesh_screen_space2d - mouse_screen_space2d;
     return delta.LengthSquared() < SELECTION_RADIUS;
-}
-
-void ScreenCoordsToWorldRay(
-    float i_mouse_x, float i_mouse_y,
-    cy::Matrix4f& i_view, cy::Matrix4f& i_projection,
-    cy::Point3f& o_origin, cy::Point3f& o_direction
-)
-{
-    const cy::Point4f ray_start_NDC_space(i_mouse_x, i_mouse_y, -1.0f, 1.0f);
-    const cy::Point4f ray_end_NDC_space(i_mouse_x, i_mouse_y, 0.0f, 1.0f);
-
-    const cy::Matrix4f inverse_projection = i_projection.GetInverse();
-    const cy::Matrix4f inverse_view = i_view.GetInverse();
-
-    cy::Point4f ray_start_camera_space = inverse_projection * ray_start_NDC_space;
-    ray_start_camera_space /= ray_start_camera_space.w;
-    cy::Point4f ray_start_world_space = inverse_view * ray_start_camera_space;
-    ray_start_world_space /= ray_start_world_space.w;
-    cy::Point4f ray_end_camera_space = inverse_projection * ray_end_NDC_space;
-    ray_end_camera_space /= ray_end_camera_space.w;
-    cy::Point4f ray_end_world_space = inverse_view * ray_end_camera_space;
-    ray_end_world_space /= ray_end_world_space.w;
-
-    const cy::Point3f ray_direction(ray_end_world_space - ray_start_world_space);
-    o_origin = cy::Point3f(ray_start_world_space);
-    o_direction = ray_direction.GetNormalized();
-}
-
-bool TestRayOBBIntersection(
-    const cy::Point3f& i_ray_origin,
-    const cy::Point3f& i_ray_direction,
-    const cy::Point3f& i_aabb_min,
-    const cy::Point3f& i_aabb_max,
-    const cy::Matrix4f& i_model,
-    float& o_intersection_distance
-)
-{
-    // Intersection method from Real-Time Rendering and Essential Mathematics for Games
-
-    float min = 0.0f;
-    float max = 100000.0f;
-
-    const cy::Point3f OBB_position_world_space = i_model.GetTrans();
-    const cy::Point3f ray_to_OBB = OBB_position_world_space - i_ray_origin;
-
-    // Test intersection with the two planes perpendicular to the OBB's X axis
-    {
-        const cy::Point3f x_axis(i_model.GetRow(0));
-        float e = x_axis.Dot(ray_to_OBB);
-        float f = i_ray_direction.Dot(x_axis);
-
-        if (fabs(f) > 0.001f)
-        {
-            float t1 = (e + i_aabb_min.x) / f;
-            float t2 = (e + i_aabb_max.x) / f;
-
-            t1 = t1 > t2 ? t2 : t1;
-            t2 = t1 > t2 ? t1 : t2;
-
-            max = t2 < max ? t2 : max;
-            min = t1 > min ? t1 : min;
-
-            if (max < min)
-            {
-                return false;
-            }
-        }
-        else if (-e + i_aabb_min.x > 0.0f || -e + i_aabb_max.x < 0.0f)
-        {
-            return false;
-        }
-    }
-
-    // Test intersection with the two planes perpendicular to the OBB's Y axis
-    {
-        const cy::Point3f y_axis(i_model.GetRow(1));
-        float e = y_axis.Dot(ray_to_OBB);
-        float f = i_ray_direction.Dot(y_axis);
-
-        if (fabs(f) > 0.001f)
-        {
-            float t1 = (e + i_aabb_min.y) / f;
-            float t2 = (e + i_aabb_max.y) / f;
-
-            t1 = t1 > t2 ? t2 : t1;
-            t2 = t1 > t2 ? t1 : t2;
-
-            max = t2 < max ? t2 : max;
-            min = t1 > min ? t1 : min;
-
-            if (max < min)
-            {
-                return false;
-            }
-        }
-        else if (-e + i_aabb_min.y > 0.0f || -e + i_aabb_max.y < 0.0f)
-        {
-            return false;
-        }
-    }
-
-    // Test intersection with the two planes perpendicular to the OBB's Z axis
-    {
-        const cy::Point3f z_axis(i_model.GetRow(2));
-        float e = z_axis.Dot(ray_to_OBB);
-        float f = i_ray_direction.Dot(z_axis);
-
-        if (fabs(f) > 0.001f)
-        {
-            float t1 = (e + i_aabb_min.z) / f;
-            float t2 = (e + i_aabb_max.z) / f;
-
-            t1 = t1 > t2 ? t2 : t1;
-            t2 = t1 > t2 ? t1 : t2;
-
-            max = t2 < max ? t2 : max;
-            min = t1 > min ? t1 : min;
-
-            if (max < min)
-            {
-                return false;
-            }
-        }
-        else if (-e + i_aabb_min.z > 0.0f || -e + i_aabb_max.z < 0.0f)
-        {
-            return false;
-        }
-    }
-
-    o_intersection_distance = min;
-    return true;
 }

@@ -2,12 +2,18 @@
 
 // Util includes
 #include "Utils/cyMatrix.h"
+#include "Utils/cyPoint.h"
 
 namespace engine {
 namespace animation {
 
-void Skeleton::UpdateJointTransform(uint8_t i_index)
+void Skeleton::UpdateJointTransforms(uint8_t i_index)
 {
+    if (i_index >= num_joints)
+    {
+        return;
+    }
+
     if (i_index == 0)
     {
         cy::Matrix4f::GetMatrixFromTransform(local_to_world_transforms[0], joints[0].local_to_parent);
@@ -36,12 +42,39 @@ void Skeleton::UpdateJointTransform(uint8_t i_index)
 
 void Skeleton::UpdateChain(uint8_t i_start_index, uint8_t i_end_index)
 {
-    UpdateJointTransform(i_start_index);
+    if (i_start_index >= num_joints ||
+        i_end_index >= num_joints)
+    {
+        return;
+    }
 
+    UpdateJointTransforms(i_start_index);
     while (i_start_index != i_end_index)
     {
         i_start_index = joints[i_start_index].child_index;
-        UpdateJointTransform(i_start_index);
+        UpdateJointTransforms(i_start_index);
+    }
+}
+
+void Skeleton::UpdateChain()
+{
+    UpdateChain(0, num_joints - 1);
+}
+
+void Skeleton::UpdateJointWorldSpacePositions()
+{
+    for (uint8_t i = 0; i < num_joints; ++i)
+    {
+        const cy::Point3f joint_trans_world_space = local_to_world_transforms[i].GetTrans();
+        joints_world_space[i].set(joint_trans_world_space.x, joint_trans_world_space.y, joint_trans_world_space.z);
+    }
+}
+
+void Skeleton::ResetToCachedPose()
+{
+    for (uint8_t i = 0; i < num_joints; ++i)
+    {
+        joints[i].local_to_parent = cached_pose[i];
     }
 }
 
@@ -57,6 +90,7 @@ void Skeleton::CreateSkeleton(Skeleton*& io_skeleton, ESkeletonType i_type)
     io_skeleton->joints = new engine::animation::Joint[io_skeleton->num_joints];
     io_skeleton->local_to_world_transforms = new cy::Matrix4f[io_skeleton->num_joints];
     io_skeleton->world_to_local_transforms = new cy::Matrix4f[io_skeleton->num_joints];
+    io_skeleton->cached_pose = new engine::math::Transform[io_skeleton->num_joints];
     io_skeleton->joints_world_space = new engine::math::Vec3D[io_skeleton->num_joints];
 
     switch (i_type)
@@ -87,14 +121,16 @@ void Skeleton::InitSimpleChain(Skeleton*& io_skeleton)
     }
 
     // Root
-	io_skeleton->joints[0].local_to_parent.rotation_ = engine::math::Quaternion(0.0f, engine::math::Vec3D::UNIT_Z);
+    io_skeleton->joints[0].local_to_parent.rotation_ = engine::math::Quaternion(0.0f, engine::math::Vec3D::UNIT_Z);
     io_skeleton->joints[0].local_to_parent.position_ = engine::math::Vec3D::ZERO;
+    io_skeleton->cached_pose[0] = io_skeleton->joints[0].local_to_parent;
 
     // Chain
     for (uint8_t i = 1; i < io_skeleton->num_joints; ++i)
     {
         io_skeleton->joints[i].local_to_parent.rotation_ = engine::math::Quaternion(0.0f, engine::math::Vec3D::UNIT_Z);
         io_skeleton->joints[i].local_to_parent.position_.set(0.0f, io_skeleton->bone_length, 0.0f);
+        io_skeleton->cached_pose[i] = io_skeleton->joints[i].local_to_parent;
     }
 }
 
@@ -174,6 +210,12 @@ void Skeleton::InitHumanoid(Skeleton*& io_skeleton)
     io_skeleton->joints[LOW_RIGHT_ARM].local_to_parent.position_.x_ = -io_skeleton->bone_length;
     io_skeleton->joints[RIGHT_HAND].parent_index = LOW_RIGHT_ARM;
     io_skeleton->joints[RIGHT_HAND].local_to_parent.position_.x_ = -io_skeleton->bone_length;
+
+    // Cache the pose
+    for (uint8_t i = 0; i < io_skeleton->num_joints; ++i)
+    {
+        io_skeleton->cached_pose[i] = io_skeleton->joints[i].local_to_parent;
+    }
 }
 
 void Skeleton::InitPalm(Skeleton*& io_skeleton)
