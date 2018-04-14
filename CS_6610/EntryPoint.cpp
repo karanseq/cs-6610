@@ -15,6 +15,7 @@
 #include "Graphics/Mesh.h"
 #include "Graphics/MeshHelpers.h"
 #include "Math/Transform.h"
+#include "Math/Vec2D.h"
 
 // Util includes
 #include "Utils/cyGL.h"
@@ -61,6 +62,8 @@ constexpr engine::animation::ESkeletonType SKELETON_TYPE = engine::animation::ES
 std::chrono::time_point<std::chrono::steady_clock> LAST_DRAW_TIME_POINT;
 bool g_left_mouse_button_pressed = false;
 bool g_right_mouse_button_pressed = false;
+bool g_left_mouse_dragging = false;
+bool g_right_mouse_dragging = false;
 bool g_control_pressed = false;
 bool g_alt_pressed = false;
 bool g_f_pressed = false;
@@ -71,8 +74,10 @@ int g_curr_mouse_z = 0;
 int g_prev_mouse_x = 0;
 int g_prev_mouse_y = 0;
 int g_prev_mouse_z = 0;
-float g_mouse_screen_space_x = 0;
-float g_mouse_screen_space_y = 0;
+float g_curr_mouse_screen_space_x = 0;
+float g_curr_mouse_screen_space_y = 0;
+float g_prev_mouse_screen_space_x = 0;
+float g_prev_mouse_screen_space_y = 0;
 uint8_t g_selected_joint = 0;
 uint8_t g_selected_end_effector = 0;
 
@@ -88,15 +93,16 @@ engine::math::Transform g_camera_transform;
 
 // Matrices
 cy::Matrix4f g_view;
-cy::Matrix4f g_perspective_projection;
+cy::Matrix4f g_projection;
 
 // Shader
 cy::GLSLProgram g_GLProgram;
 
 // Meshes
 engine::graphics::Mesh g_plane_mesh;
-engine::graphics::Mesh* g_joint_meshes;
+engine::graphics::Mesh* g_joint_meshes = nullptr;
 engine::graphics::Mesh g_target_mesh;
+engine::graphics::Mesh* g_selected_mesh = nullptr;
 
 // Misc
 std::stringstream g_message_stream;
@@ -135,6 +141,12 @@ void UpdateRotationBasedOnInput(float i_delta_x, float i_delta_y);
 void UpdatePositionBasedOnInput(float i_delta_x, float i_delta_y, float i_delta_mouse_z);
 void UpdateSelection();
 void UpdateSkeleton();
+void Reset();
+
+// Mouse functions
+void HandleMouseDown();
+void HandleMouseUp();
+void HandleMouseDrag();
 
 // Other functions
 void SolveFABRIK();
@@ -296,28 +308,50 @@ void SpecialUpFunc(int key, int x, int y)
 
 void MouseFunc(int button, int state, int x, int y)
 {
-    g_left_mouse_button_pressed = button == GLUT_LEFT_BUTTON ? state == GLUT_DOWN : g_left_mouse_button_pressed;
-    g_right_mouse_button_pressed = button == GLUT_RIGHT_BUTTON ? state == GLUT_DOWN : g_right_mouse_button_pressed;
+    // Update mouse coordinates
+    g_curr_mouse_x = x;
+    g_curr_mouse_y = y;
+    g_prev_mouse_x = x;
+    g_prev_mouse_y = y;
+    g_curr_mouse_screen_space_x = float(g_curr_mouse_x - WINDOW_WIDTH / 2) / float(WINDOW_WIDTH / 2);
+    g_curr_mouse_screen_space_y = float(g_curr_mouse_y - WINDOW_HEIGHT / 2) / float(WINDOW_HEIGHT / 2);
+    g_prev_mouse_screen_space_x = g_curr_mouse_screen_space_x;
+    g_prev_mouse_screen_space_y = g_curr_mouse_screen_space_y;
 
-    const bool buttonPressed = g_left_mouse_button_pressed || g_right_mouse_button_pressed;
-    g_curr_mouse_x = buttonPressed ? x : g_curr_mouse_x;
-    g_curr_mouse_y = buttonPressed ? y : g_curr_mouse_y;
-    g_prev_mouse_x = buttonPressed ? x : g_prev_mouse_x;
-    g_prev_mouse_y = buttonPressed ? y : g_prev_mouse_y;
+    if (state == GLUT_DOWN)
+    {
+        // Update flags
+        g_left_mouse_button_pressed = button == GLUT_LEFT_BUTTON;
+        g_right_mouse_button_pressed = button == GLUT_RIGHT_BUTTON;
 
-    g_mouse_screen_space_x = float(g_curr_mouse_x - WINDOW_WIDTH / 2) / float(WINDOW_WIDTH / 2);
-    g_mouse_screen_space_y = float(g_curr_mouse_y - WINDOW_HEIGHT / 2) / float(WINDOW_HEIGHT / 2);
+        HandleMouseDown();
+    }
+    else if (state == GLUT_UP)
+    {
+        HandleMouseUp();
 
-    UpdateSelection();
+        // Update flags
+        g_left_mouse_button_pressed = g_right_mouse_button_pressed = false;
+        g_left_mouse_dragging = g_left_mouse_button_pressed;
+        g_right_mouse_dragging = g_right_mouse_button_pressed;
+    }
 }
 
 void MotionFunc(int x, int y)
 {
+    // Update mouse coordinates
     g_curr_mouse_x = x;
     g_curr_mouse_y = y;
+    g_prev_mouse_screen_space_x = g_curr_mouse_screen_space_x;
+    g_prev_mouse_screen_space_y = g_curr_mouse_screen_space_y;
+    g_curr_mouse_screen_space_x = float(g_curr_mouse_x - WINDOW_WIDTH / 2) / float(WINDOW_WIDTH / 2);
+    g_curr_mouse_screen_space_y = float(g_curr_mouse_y - WINDOW_HEIGHT / 2) / float(WINDOW_HEIGHT / 2);
 
-    g_mouse_screen_space_x = float(g_curr_mouse_x - WINDOW_WIDTH / 2) / float(WINDOW_WIDTH / 2);
-    g_mouse_screen_space_y = float(g_curr_mouse_y - WINDOW_HEIGHT / 2) / float(WINDOW_HEIGHT / 2);
+    // Update flags
+    g_left_mouse_dragging = g_left_mouse_button_pressed;
+    g_right_mouse_dragging = g_right_mouse_button_pressed;
+
+    HandleMouseDrag();
 }
 
 void MouseWheelFunc(int button, int dir, int x, int y)
@@ -378,8 +412,9 @@ void InitMeshes()
         transform.position_.y_ = 30.0f;
         g_target_mesh.SetTransform(transform);
         g_target_mesh.SetColor(engine::graphics::Color::ORANGE);
-        g_target_mesh.SetSelectedColor(engine::graphics::Color::YELLOW);
+
         g_target_mesh.InitSelection(engine::graphics::EMeshSelectionType::Editable);
+        g_target_mesh.SetSelectedColor(engine::graphics::Color::YELLOW);
 
         constexpr float halfWidth = 0.5f;
         engine::graphics::MeshHelpers::CreateBoxMesh(g_target_mesh, halfWidth);
@@ -402,7 +437,7 @@ void InitCamera()
         static constexpr float zNear = 0.1f;
         static constexpr float zFar = 1000.0f;
 
-        g_perspective_projection = cy::Matrix4f::MatrixPerspective(fov, aspectRatio, zNear, zFar);
+        g_projection = cy::Matrix4f::MatrixPerspective(fov, aspectRatio, zNear, zFar);
     }
 }
 
@@ -447,6 +482,9 @@ void InitSkeletonMesh()
     for (uint8_t i = 0; i < g_skeleton->num_joints; ++i)
     {
         g_joint_meshes[i].SetColor(engine::graphics::Color::TURQUOISE);
+        g_joint_meshes[i].InitSelection(engine::graphics::EMeshSelectionType::NonEditable);
+        g_joint_meshes[i].SetSelectedColor(engine::graphics::Color::YELLOW);
+
         engine::graphics::MeshHelpers::CreateBoxMesh(g_joint_meshes[i], halfWidth);
     }
 }
@@ -468,7 +506,7 @@ void Render()
     g_GLProgram.SetUniformMatrix4("g_transform_view", g_view.data);
 
     // Set the projection matrix
-    g_GLProgram.SetUniformMatrix4("g_transform_projection", g_perspective_projection.data);
+    g_GLProgram.SetUniformMatrix4("g_transform_projection", g_projection.data);
 
     // Render the meshes
     g_plane_mesh.Render(g_GLProgram);
@@ -496,18 +534,13 @@ void Update(float DeltaSeconds)
 
     // Respond to input
     UpdateRotationBasedOnInput(deltaMouseX, deltaMouseY);
-    UpdatePositionBasedOnInput(deltaMouseX, deltaMouseY, mouseZ);
-    //UpdateSelection();
+//    UpdatePositionBasedOnInput(deltaMouseX, deltaMouseY, mouseZ);
 
     // Reset skeleton
     if (g_r_pressed)
     {
         g_r_pressed = false;
-        g_target_mesh.GetTransform().position_.x_ = -30.0f;
-        g_target_mesh.GetTransform().position_.y_ = 30.0f;
-
-        InitSkeletonTransforms();
-        UpdateSkeleton();
+        Reset();
     }
 
     g_prev_mouse_x = g_curr_mouse_x;
@@ -518,7 +551,7 @@ void Update(float DeltaSeconds)
 
 void UpdateRotationBasedOnInput(float i_delta_x, float i_delta_y)
 {
-    if (g_left_mouse_button_pressed)
+    if (g_right_mouse_button_pressed)
     {
         static constexpr float rotationDamping = DEGREES_TO_RADIANS(0.1f);
 
@@ -590,25 +623,6 @@ void UpdatePositionBasedOnInput(float i_delta_x, float i_delta_y, float i_delta_
 
 void UpdateSelection()
 {
-    if (g_left_mouse_button_pressed == false)
-    {
-        return;
-    }
-
-    const cy::Matrix4f screen = g_perspective_projection * g_view;
-    const cy::Point3f target_world_space(g_target_mesh.GetTransform().position_.x_, g_target_mesh.GetTransform().position_.y_, g_target_mesh.GetTransform().position_.z_);
-
-    if (TestPointForSelection(target_world_space, screen))
-    {
-        g_target_mesh.SetIsSelected(true);
-        LOG("Target selected!");
-    }
-    else
-    {
-        g_target_mesh.SetIsSelected(false);
-        LOG("Target not found!");
-    }
-
     //http://www.opengl-tutorial.org/miscellaneous/clicking-on-objects/picking-with-custom-ray-obb-function/
 
     //cy::Point3f ray_origin;
@@ -657,6 +671,90 @@ void UpdateSkeleton()
     {
         const cy::Point3f joint_trans = g_skeleton->local_to_world_transforms[i].GetTrans();
         g_skeleton->joints_world_space[i].set(joint_trans.x, joint_trans.y, joint_trans.z);
+    }
+}
+
+void Reset()
+{
+    g_target_mesh.GetTransform().position_.x_ = -30.0f;
+    g_target_mesh.GetTransform().position_.y_ = 30.0f;
+
+    InitSkeletonTransforms();
+    UpdateSkeleton();
+}
+
+void HandleMouseDown()
+{}
+
+void HandleMouseUp()
+{
+    const cy::Matrix4f screen = g_projection * g_view;
+    const engine::math::Vec2D mouse_screen_space2d(g_curr_mouse_screen_space_x, g_curr_mouse_screen_space_y);
+
+    bool click_consumed = false;
+
+    // Don't do any selection if the mouse was being dragged
+    if (g_left_mouse_dragging == false &&
+        g_right_mouse_dragging == false)
+    {
+        // Deselect the previously selected mesh, if any
+        if (g_selected_mesh != nullptr)
+        {
+            g_selected_mesh->SetIsSelected(false);
+            g_selected_mesh = false;
+        }
+
+        // Offer the target mesh first dibs
+        if (g_target_mesh.HandleMouseClick(mouse_screen_space2d, screen))
+        {
+            click_consumed = true;
+            g_selected_mesh = &g_target_mesh;
+        }
+        // Joint meshes get second dibs
+        else
+        {
+            for (uint8_t i = 0; i < g_skeleton->num_joints; ++i)
+            {
+                if (TestPointForSelection(g_skeleton->local_to_world_transforms[i].GetTrans(), screen))
+                {
+                    g_joint_meshes[i].SetIsSelected(true);
+                    click_consumed = true;
+                    g_selected_mesh = &g_joint_meshes[i];
+                    break;
+                }
+            }
+        }
+    }
+}
+
+void HandleMouseDrag()
+{
+    if (g_left_mouse_dragging &&
+        g_selected_mesh != nullptr)
+    {
+        cy::Matrix4f view;
+        cy::Matrix4f::GetMatrixFromTransform(view, g_camera_transform);
+
+        const cy::Point4f camera_forward = view.GetColumn(2);
+        const cy::Point4f camera_right = view.GetColumn(0);
+
+        cy::Matrix4f model;
+        cy::Matrix4f::GetMatrixFromTransform(model, g_selected_mesh->GetTransform());
+
+        const cy::Point4f mesh_forward = model.GetColumn(2);
+        const cy::Point4f mesh_right = model.GetColumn(0);
+
+        const float dot = camera_forward.Dot(mesh_right);
+
+        const float delta_mouse_x = g_curr_mouse_screen_space_x - g_prev_mouse_screen_space_x;
+        const float delta_mouse_y = g_curr_mouse_screen_space_y - g_prev_mouse_screen_space_y;
+
+        g_selected_mesh->GetTransform().position_.x_ += (1.0f - dot) * delta_mouse_x * -5.0f;
+        g_selected_mesh->GetTransform().position_.z_ += dot * delta_mouse_x * 5.0f;
+        g_selected_mesh->GetTransform().position_.y_ += -delta_mouse_y * 5.0f;
+
+        LOG("DOT:%f", dot);
+        LOG("camera_forward:%f, %f, %f", camera_forward.x, camera_forward.y, camera_forward.z);
     }
 }
 
@@ -714,10 +812,10 @@ void PrintMatrix(const cy::Matrix4f& i_matrix)
 
 bool TestPointForSelection(const cy::Point3f& i_point_world_space, const cy::Matrix4f& i_screen)
 {
-    const cy::Point4f target_screen_space = i_screen * i_point_world_space;
-    const cy::Point2f mouse_screen_space2d(g_mouse_screen_space_x, g_mouse_screen_space_y);
-    const cy::Point2f target_screen_space2d(target_screen_space.x / target_screen_space.w, -target_screen_space.y / target_screen_space.w);
-    const cy::Point2f delta = target_screen_space2d - mouse_screen_space2d;
+    const cy::Point4f point_screen_space = i_screen * i_point_world_space;
+    const cy::Point2f mouse_screen_space2d(g_curr_mouse_screen_space_x, g_curr_mouse_screen_space_y);
+    const cy::Point2f mesh_screen_space2d(point_screen_space.x / point_screen_space.w, -point_screen_space.y / point_screen_space.w);
+    const cy::Point2f delta = mesh_screen_space2d - mouse_screen_space2d;
     return delta.LengthSquared() < SELECTION_RADIUS;
 }
 

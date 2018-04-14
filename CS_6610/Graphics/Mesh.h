@@ -22,6 +22,11 @@ namespace cy {
 }
 
 namespace engine {
+
+namespace math {
+    class Vec2D;
+}
+
 namespace graphics {
 
 enum class EMeshSelectionType : uint8_t
@@ -55,6 +60,10 @@ private:
     //==========
 public:
     void InitSelection(EMeshSelectionType i_selection_type);
+    bool HandleMouseClick(const engine::math::Vec2D& i_mouse_screen_space, const cy::Matrix4f& i_screen);
+    bool HandleMouseDrag(const engine::math::Vec2D& i_mouse_screen_space,
+        const engine::math::Vec2D& i_prev_mouse_screen_space,
+        const cy::Matrix4f& i_screen);
 
     FORCEINLINE EMeshSelectionType GetSelectionType() const { return selection_type_; }
 

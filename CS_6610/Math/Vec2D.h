@@ -57,7 +57,7 @@ namespace math {
         static const Vec2D          UNIT_X;
         static const Vec2D          UNIT_Y;
 
-    protected:
+    public:
         float                       x_;
         float                       y_;
     }; // class Vec2D
