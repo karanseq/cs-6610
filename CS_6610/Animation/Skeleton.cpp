@@ -58,7 +58,21 @@ void Skeleton::UpdateChain(uint8_t i_start_index, uint8_t i_end_index)
 
 void Skeleton::UpdateChain()
 {
-    UpdateChain(0, num_joints - 1);
+    switch (type)
+    {
+    case engine::animation::ESkeletonType::SimpleChain:
+        UpdateChain(0, num_joints - 1);
+        break;
+    case engine::animation::ESkeletonType::Humanoid:
+        UpdateJointTransforms(PELVIS);
+        UpdateJointTransforms(TORSO);
+        UpdateJointTransforms(HEAD);
+        UpdateChain(UP_LEFT_LEG, LEFT_FOOT);
+        UpdateChain(UP_RIGHT_LEG, RIGHT_FOOT);
+        UpdateChain(UP_LEFT_ARM, LEFT_HAND);
+        UpdateChain(UP_RIGHT_ARM, RIGHT_HAND);
+        break;
+    }
 }
 
 void Skeleton::UpdateJointWorldSpacePositions()
@@ -80,10 +94,28 @@ void Skeleton::ResetToCachedPose()
 
 void Skeleton::CreateSkeleton(Skeleton*& io_skeleton, ESkeletonType i_type)
 {
-    if (io_skeleton == nullptr ||
-        io_skeleton->num_joints == 0)
+    if (i_type == ESkeletonType::None)
     {
         return;
+    }
+
+    io_skeleton = new Skeleton;
+    io_skeleton->type = i_type;
+
+    switch (i_type)
+    {
+    case engine::animation::ESkeletonType::SimpleChain:
+        io_skeleton->num_joints = 10;
+        io_skeleton->bone_length = 3.0f;
+        break;
+    case engine::animation::ESkeletonType::Humanoid:
+        io_skeleton->num_joints = 15;
+        io_skeleton->bone_length = 5.0f;
+        break;
+    case engine::animation::ESkeletonType::Palm:
+        return;
+    default:
+        break;
     }
 
     // Allocate joints
@@ -107,6 +139,8 @@ void Skeleton::CreateSkeleton(Skeleton*& io_skeleton, ESkeletonType i_type)
     default:
         break;
     }
+
+    io_skeleton->UpdateChain();
 }
 
 void Skeleton::InitSimpleChain(Skeleton*& io_skeleton)

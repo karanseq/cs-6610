@@ -21,22 +21,27 @@ namespace animation {
 
 enum class ESkeletonType : uint8_t
 {
+    None,
     SimpleChain,
     Humanoid,
     Palm,
 
 }; // enum class ESkeletonType
 
+struct Skeleton;
 struct Joint
 {
     engine::math::Transform     local_to_parent;
-    uint8_t                     parent_index = 0;
-    uint8_t                     child_index = 0;
+    uint8_t                     parent_index = MAX_JOINT_INDEX;
+    uint8_t                     child_index = MAX_JOINT_INDEX;
+
+    static constexpr uint8_t MAX_JOINT_INDEX = 255;
 
 }; // struct Joint
 
 struct Skeleton
 {
+    ESkeletonType               type = ESkeletonType::None;
     Joint*                      joints = nullptr;
     cy::Matrix4f*               local_to_world_transforms = nullptr;
     cy::Matrix4f*               world_to_local_transforms = nullptr;
@@ -50,6 +55,21 @@ struct Skeleton
     void UpdateChain();
     void UpdateJointWorldSpacePositions();
     void ResetToCachedPose();
+
+    FORCEINLINE bool IsEndEffector(uint8_t i_index) const
+    {
+        switch (type)
+        {
+        case engine::animation::ESkeletonType::SimpleChain:
+            return i_index == num_joints - 1;
+        case engine::animation::ESkeletonType::Humanoid:
+            return i_index == LEFT_FOOT || i_index == RIGHT_FOOT || i_index == LEFT_HAND || i_index == RIGHT_HAND;
+        case engine::animation::ESkeletonType::None:
+        case engine::animation::ESkeletonType::Palm:
+        default:
+            return false;
+        }
+    }
 
     static void CreateSkeleton(Skeleton*& io_skeleton, ESkeletonType i_type);
 

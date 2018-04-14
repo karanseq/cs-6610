@@ -41,7 +41,6 @@ constexpr char* CONTENT_PATH = "..\\CS_6610\\Content\\";
 constexpr char* PLANE_VERTEX_SHADER_PATH = "..\\CS_6610\\Content\\plane_vertex_shader.glsl";
 constexpr char* PLANE_FRAGMENT_SHADER_PATH = "..\\CS_6610\\Content\\plane_fragment_shader.glsl";
 
-constexpr uint8_t MAX_JOINT_INDEX = 255;
 constexpr uint8_t CONTENT_PATH_LENGTH = 22;
 constexpr uint16_t MAX_PATH_LENGTH = 1024;
 constexpr uint16_t WINDOW_WIDTH = 1024;
@@ -57,7 +56,7 @@ const cy::Point3f YELLOW(1.0f, 1.0f, 0.0f);
 const cy::Point3f WHITE(1.0f, 1.0f, 1.0f);
 const cy::Point3f GREY(0.5f, 0.5f, 0.5f);
 
-constexpr engine::animation::ESkeletonType SKELETON_TYPE = engine::animation::ESkeletonType::SimpleChain;
+constexpr engine::animation::ESkeletonType SKELETON_TYPE = engine::animation::ESkeletonType::Humanoid;
 
 
 //~====================================================================================================
@@ -82,7 +81,7 @@ float g_curr_mouse_screen_space_x = 0;
 float g_curr_mouse_screen_space_y = 0;
 float g_prev_mouse_screen_space_x = 0;
 float g_prev_mouse_screen_space_y = 0;
-uint8_t g_selected_joint = MAX_JOINT_INDEX;
+uint8_t g_selected_joint = engine::animation::Joint::MAX_JOINT_INDEX;
 uint8_t g_selected_end_effector = 0;
 
 
@@ -414,22 +413,7 @@ void InitCamera()
 
 void InitSkeleton()
 {
-    g_skeleton = new engine::animation::Skeleton;
-
-    if (SKELETON_TYPE == engine::animation::ESkeletonType::SimpleChain)
-    {
-        g_skeleton->num_joints = 10;
-        g_skeleton->bone_length = 3.0f;
-    }
-    else if (SKELETON_TYPE == engine::animation::ESkeletonType::Humanoid)
-    {
-        g_skeleton->num_joints = 15;
-        g_skeleton->bone_length = 5.0f;
-    }
-
     engine::animation::Skeleton::CreateSkeleton(g_skeleton, SKELETON_TYPE);
-
-    g_skeleton->UpdateChain();
     InitSkeletonMesh();
 }
 
@@ -458,6 +442,14 @@ void InitSkeletonMesh()
         g_joint_meshes[i].SetSelectedColor(engine::graphics::Color::YELLOW);
 
         engine::graphics::MeshHelpers::CreateBoxMesh(g_joint_meshes[i], halfWidth);
+    }
+
+    if (SKELETON_TYPE == engine::animation::ESkeletonType::Humanoid)
+    {
+        g_joint_meshes[engine::animation::Skeleton::LEFT_HAND].SetSelectedColor(engine::graphics::Color::MAGENTA);
+        g_joint_meshes[engine::animation::Skeleton::RIGHT_HAND].SetSelectedColor(engine::graphics::Color::MAGENTA);
+        g_joint_meshes[engine::animation::Skeleton::LEFT_FOOT].SetSelectedColor(engine::graphics::Color::MAGENTA);
+        g_joint_meshes[engine::animation::Skeleton::RIGHT_FOOT].SetSelectedColor(engine::graphics::Color::MAGENTA);
     }
 }
 
@@ -534,7 +526,7 @@ void UpdateRotationBasedOnInput(float i_delta_x, float i_delta_y)
     if (g_left_mouse_dragging)
     {
         // First dibs to skeleton
-        if (g_selected_joint < MAX_JOINT_INDEX)
+        if (g_selected_joint < engine::animation::Joint::MAX_JOINT_INDEX)
         {
             // Joint rotation
             if (abs(i_delta_x) > 0.0f)
@@ -552,6 +544,9 @@ void UpdateRotationBasedOnInput(float i_delta_x, float i_delta_y)
                 g_skeleton->joints[g_selected_joint].local_to_parent.rotation_.Normalize();
                 g_skeleton->UpdateChain();
             }
+
+            // Update cached pose
+            g_skeleton->cached_pose[g_selected_joint] = g_skeleton->joints[g_selected_joint].local_to_parent;
         }
         // Second dibs to camera
         else if (g_selected_mesh == nullptr)
@@ -589,6 +584,18 @@ void UpdatePositionBasedOnInput(float i_delta_x, float i_delta_y, float i_delta_
 
 void Reset()
 {
+    if (g_selected_mesh != nullptr)
+    {
+        g_selected_mesh->SetIsSelected(false);
+        g_selected_mesh = nullptr;
+    }
+    g_selected_joint = engine::animation::Joint::MAX_JOINT_INDEX;
+    if (g_selected_end_effector != engine::animation::Joint::MAX_JOINT_INDEX)
+    {
+        g_joint_meshes[g_selected_end_effector].SetIsSelected(false);
+        g_selected_end_effector = engine::animation::Joint::MAX_JOINT_INDEX;
+    }
+
     g_target_mesh.GetTransform().position_.x_ = -30.0f;
     g_target_mesh.GetTransform().position_.y_ = 30.0f;
 
@@ -715,9 +722,15 @@ bool TestMeshesForSelection(const engine::math::Vec2D& i_mouse_screen_space2d, c
     // Deselect the previously selected mesh, if any
     if (g_selected_mesh != nullptr)
     {
-        g_selected_mesh->SetIsSelected(false);
-        g_selected_mesh = false;
-        g_selected_joint = MAX_JOINT_INDEX;
+        // Don't deselect end effectors
+        if (g_selected_joint == engine::animation::Joint::MAX_JOINT_INDEX ||
+            g_selected_joint != g_selected_end_effector)
+        {
+            g_selected_mesh->SetIsSelected(false);
+        }
+
+        g_selected_mesh = nullptr;
+        g_selected_joint = engine::animation::Joint::MAX_JOINT_INDEX;
     }
 
     // Offer the target mesh first dibs
@@ -739,6 +752,18 @@ bool TestMeshesForSelection(const engine::math::Vec2D& i_mouse_screen_space2d, c
                 g_selected_joint = i;
                 break;
             }
+        }
+
+        if (SKELETON_TYPE == engine::animation::ESkeletonType::Humanoid &&
+            g_skeleton->IsEndEffector(g_selected_joint))
+        {
+            // Deselect previously selected end-effector
+            if (g_selected_end_effector != engine::animation::Joint::MAX_JOINT_INDEX)
+            {
+                g_joint_meshes[g_selected_end_effector].SetIsSelected(false);
+            }
+            g_selected_end_effector = g_selected_joint;
+            g_joint_meshes[g_selected_end_effector].SetIsSelected(true);
         }
     }
 
