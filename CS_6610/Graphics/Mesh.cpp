@@ -45,7 +45,9 @@ void Mesh::Render(cy::GLSLProgram& io_program)
     glDrawElements(GL_TRIANGLES, num_indices_, GL_UNSIGNED_BYTE, 0);
 
     // Draw selection
-    if (is_selected_ && selection_type_ == EMeshSelectionType::Editable)
+    if (selection_type_ == EMeshSelectionType::Editable &&
+        (selection_draw_type_ == EMeshSelectionDrawType::DrawAlways) ||
+        (selection_draw_type_ == EMeshSelectionDrawType::DrawWhenSelected && is_selected_))
     {
         for (uint8_t i = 0; i < NUM_SELECTION_MESHES; ++i)
         {
@@ -77,14 +79,16 @@ void Mesh::Render(cy::GLSLProgram& io_program, const cy::Matrix4f& i_model)
     glDrawElements(GL_TRIANGLES, num_indices_, GL_UNSIGNED_BYTE, 0);
 
     // Draw selection
-    if (is_selected_ && selection_type_ == EMeshSelectionType::Editable)
+    if (selection_type_ == EMeshSelectionType::Editable &&
+        (selection_draw_type_ == EMeshSelectionDrawType::DrawAlways) ||
+        (selection_draw_type_ == EMeshSelectionDrawType::DrawWhenSelected && is_selected_))
     {
         for (uint8_t i = 0; i < NUM_SELECTION_MESHES; ++i)
         {
             cy::Matrix4f arrow;
             cy::Matrix4f::GetMatrixFromTransform(arrow, selection_meshes_[i].GetTransform());
             arrow = i_model * arrow;
-            selection_meshes_[i].Render(io_program);
+            selection_meshes_[i].Render(io_program, arrow);
         }
     }
 }
@@ -107,7 +111,7 @@ void Mesh::InitSelection(EMeshSelectionType i_selection_type)
     }
 }
 
-bool Mesh::HandleMouseClick(const engine::math::Vec2D& i_mouse_screen_space, const cy::Matrix4f& i_screen)
+bool Mesh::TestMouseClick(const engine::math::Vec2D& i_mouse_screen_space, const cy::Matrix4f& i_screen)
 {
     if (selection_type_ == EMeshSelectionType::None)
     {
@@ -123,43 +127,6 @@ bool Mesh::HandleMouseClick(const engine::math::Vec2D& i_mouse_screen_space, con
 
     constexpr float SELECTION_RADIUS = 0.0005f;
     is_selected_ = delta_mouse_mesh_screen_space2d.LengthSquared() < SELECTION_RADIUS;
-    return is_selected_;
-}
-
-bool Mesh::HandleMouseDrag(const engine::math::Vec2D& i_mouse_screen_space,
-    const engine::math::Vec2D& i_prev_mouse_screen_space,
-    const cy::Matrix4f& i_screen)
-{
-    //if (selection_type_ == EMeshSelectionType::None)
-    {
-        return false;
-    }
-
-    cy::Matrix4f model;
-    cy::Matrix4f::GetMatrixFromTransform(model, transform_);
-    const cy::Point4f mesh_screen_space = i_screen * model.GetTrans();
-
-    const engine::math::Vec2D mesh_screen_space2d(mesh_screen_space.x / mesh_screen_space.w, -mesh_screen_space.y / mesh_screen_space.w);
-    const engine::math::Vec2D delta_mouse_mesh_screen_space2d = mesh_screen_space2d - i_mouse_screen_space;
-
-    constexpr float SELECTION_RADIUS = 0.0005f;
-    if (delta_mouse_mesh_screen_space2d.LengthSquared() < SELECTION_RADIUS)
-    {
-        const cy::Point4f delta_mouse_screen_space(i_mouse_screen_space.x_ - i_prev_mouse_screen_space.x_,
-            i_mouse_screen_space.y_ - i_prev_mouse_screen_space.y_,
-            mesh_screen_space.z / mesh_screen_space.w,
-            mesh_screen_space.w / mesh_screen_space.w);
-        const cy::Point4f delta_mouse_world_space = i_screen.GetInverse() * delta_mouse_screen_space;
-
-        transform_.position_.x_ += delta_mouse_world_space.x * mesh_screen_space.w;
-        //transform_.position_.y_ += delta_mouse_world_space.y * 100.0f;
-        LOG("MouseScreenSpace Curr:%f, %f Prev:%f, %f", i_mouse_screen_space.x_, i_mouse_screen_space.y_, i_prev_mouse_screen_space.x_, i_prev_mouse_screen_space.y_);
-        LOG("DeltaMouseScreenSpace:%f, %f, %f, %f", delta_mouse_screen_space.x, delta_mouse_screen_space.y, delta_mouse_screen_space.z, delta_mouse_screen_space.w);
-        LOG("DeltaWorldSpace:%f, %f, %f, %f", delta_mouse_world_space.x, delta_mouse_world_space.y, delta_mouse_world_space.z, delta_mouse_world_space.w);
-
-        is_selected_ = true;
-    }
-
     return is_selected_;
 }
 

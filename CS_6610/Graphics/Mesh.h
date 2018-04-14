@@ -36,6 +36,13 @@ enum class EMeshSelectionType : uint8_t
     NonEditable,
 };
 
+enum class EMeshSelectionDrawType : uint8_t
+{
+    None,
+    DrawAlways,
+    DrawWhenSelected,
+};
+
 class MeshHelpers;
 
 class Mesh
@@ -60,12 +67,11 @@ private:
     //==========
 public:
     void InitSelection(EMeshSelectionType i_selection_type);
-    bool HandleMouseClick(const engine::math::Vec2D& i_mouse_screen_space, const cy::Matrix4f& i_screen);
-    bool HandleMouseDrag(const engine::math::Vec2D& i_mouse_screen_space,
-        const engine::math::Vec2D& i_prev_mouse_screen_space,
-        const cy::Matrix4f& i_screen);
+    bool TestMouseClick(const engine::math::Vec2D& i_mouse_screen_space, const cy::Matrix4f& i_screen);
 
     FORCEINLINE EMeshSelectionType GetSelectionType() const { return selection_type_; }
+    FORCEINLINE EMeshSelectionDrawType GetSelectionDrawType() const { return selection_draw_type_; }
+    FORCEINLINE void SetSelectionDrawType(EMeshSelectionDrawType i_selection_draw_type) { selection_draw_type_ = i_selection_draw_type; }
 
     FORCEINLINE bool GetIsSelected() const { return is_selected_; }
     FORCEINLINE void SetIsSelected(bool i_selected) { is_selected_ = i_selected; }
@@ -75,6 +81,7 @@ private:
 
 private:
     EMeshSelectionType selection_type_ = EMeshSelectionType::None;
+    EMeshSelectionDrawType selection_draw_type_ = EMeshSelectionDrawType::None;
     Mesh* selection_meshes_ = nullptr;
     bool is_selected_ = false;
     static constexpr uint8_t NUM_SELECTION_MESHES = 3;

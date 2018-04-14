@@ -398,6 +398,7 @@ void InitMeshes()
         g_target_mesh.SetColor(engine::graphics::Color::ORANGE);
 
         g_target_mesh.InitSelection(engine::graphics::EMeshSelectionType::Editable);
+        g_target_mesh.SetSelectionDrawType(engine::graphics::EMeshSelectionDrawType::DrawAlways);
         g_target_mesh.SetSelectedColor(engine::graphics::Color::YELLOW);
 
         constexpr float halfWidth = 0.5f;
@@ -466,7 +467,8 @@ void InitSkeletonMesh()
     for (uint8_t i = 0; i < g_skeleton->num_joints; ++i)
     {
         g_joint_meshes[i].SetColor(engine::graphics::Color::TURQUOISE);
-        g_joint_meshes[i].InitSelection(engine::graphics::EMeshSelectionType::NonEditable);
+        g_joint_meshes[i].InitSelection(engine::graphics::EMeshSelectionType::Editable);
+        g_joint_meshes[i].SetSelectionDrawType(engine::graphics::EMeshSelectionDrawType::DrawAlways);
         g_joint_meshes[i].SetSelectedColor(engine::graphics::Color::YELLOW);
 
         engine::graphics::MeshHelpers::CreateBoxMesh(g_joint_meshes[i], halfWidth);
@@ -803,7 +805,7 @@ bool TestMeshesForSelection(const engine::math::Vec2D& i_mouse_screen_space2d, c
     }
 
     // Offer the target mesh first dibs
-    if (g_target_mesh.HandleMouseClick(i_mouse_screen_space2d, i_screen))
+    if (g_target_mesh.TestMouseClick(i_mouse_screen_space2d, i_screen))
     {
         click_consumed = true;
         g_selected_mesh = &g_target_mesh;
