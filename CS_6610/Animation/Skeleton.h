@@ -56,7 +56,7 @@ struct Skeleton
     void UpdateJointWorldSpacePositions();
     void ResetToCachedPose();
 
-    FORCEINLINE bool IsEndEffector(uint8_t i_index) const
+    inline bool IsEndEffector(uint8_t i_index) const
     {
         switch (type)
         {
