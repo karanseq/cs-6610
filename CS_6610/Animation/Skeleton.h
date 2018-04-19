@@ -72,6 +72,7 @@ struct Skeleton
     }
 
     static void CreateSkeleton(Skeleton*& io_skeleton, ESkeletonType i_type);
+    static void DestroySkeleton(Skeleton*& io_skeleton);
 
     static void InitSimpleChain(Skeleton*& io_skeleton);
     static void InitHumanoid(Skeleton*& io_skeleton);

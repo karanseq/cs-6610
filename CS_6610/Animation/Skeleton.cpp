@@ -143,6 +143,16 @@ void Skeleton::CreateSkeleton(Skeleton*& io_skeleton, ESkeletonType i_type)
     io_skeleton->UpdateChain();
 }
 
+void Skeleton::DestroySkeleton(Skeleton*& io_skeleton)
+{
+    delete[] io_skeleton->joints;
+    delete[] io_skeleton->local_to_world_transforms;
+    delete[] io_skeleton->world_to_local_transforms;
+    delete[] io_skeleton->cached_pose;
+    delete[] io_skeleton->joints_world_space;
+    delete io_skeleton;
+}
+
 void Skeleton::InitSimpleChain(Skeleton*& io_skeleton)
 {
     // Initialize the parent indices

@@ -56,8 +56,6 @@ const cy::Point3f YELLOW(1.0f, 1.0f, 0.0f);
 const cy::Point3f WHITE(1.0f, 1.0f, 1.0f);
 const cy::Point3f GREY(0.5f, 0.5f, 0.5f);
 
-constexpr engine::animation::ESkeletonType SKELETON_TYPE = engine::animation::ESkeletonType::Humanoid;
-
 
 //~====================================================================================================
 // Counters
@@ -67,9 +65,8 @@ bool g_left_mouse_button_pressed = false;
 bool g_right_mouse_button_pressed = false;
 bool g_left_mouse_dragging = false;
 bool g_right_mouse_dragging = false;
-bool g_control_pressed = false;
-bool g_alt_pressed = false;
 bool g_r_pressed = false;
+bool g_s_pressed = false;
 bool g_target_updated = false;
 int g_curr_mouse_x = 0;
 int g_curr_mouse_y = 0;
@@ -89,6 +86,7 @@ uint8_t g_selected_end_effector = 0;
 // Data
 
 // Skeleton
+engine::animation::ESkeletonType g_skeleton_type = engine::animation::ESkeletonType::SimpleChain;
 engine::animation::Skeleton* g_skeleton = nullptr;
 
 // Transforms
@@ -119,7 +117,6 @@ void DisplayFunc();
 void IdleFunc();
 void KeyboardFunc(unsigned char key, int x, int y);
 void SpecialFunc(int key, int x, int y);
-void SpecialUpFunc(int key, int x, int y);
 void MouseFunc(int button, int state, int x, int y);
 void MotionFunc(int x, int y);
 void MouseWheelFunc(int button, int dir, int x, int y);
@@ -143,6 +140,7 @@ void Update(float DeltaSeconds);
 void UpdateRotationBasedOnInput(float i_delta_x, float i_delta_y);
 void UpdatePositionBasedOnInput(float i_delta_x, float i_delta_y, float i_delta_mouse_z);
 void Reset();
+void ChangeSkeleton();
 
 // Mouse functions
 void HandleMouseDown();
@@ -197,7 +195,6 @@ int main(int argcp, char** argv)
         glutIdleFunc(&IdleFunc);
         glutKeyboardFunc(&KeyboardFunc);
         glutSpecialFunc(&SpecialFunc);
-        glutSpecialUpFunc(&SpecialUpFunc);
         glutMouseFunc(&MouseFunc);
         glutMotionFunc(&MotionFunc);
         glutMouseWheelFunc(&MouseWheelFunc);
@@ -254,6 +251,7 @@ void KeyboardFunc(unsigned char key, int x, int y)
     }
 
     g_r_pressed = key == 'r';
+    g_s_pressed = key == 's';
 }
 
 void SpecialFunc(int key, int x, int y)
@@ -262,17 +260,6 @@ void SpecialFunc(int key, int x, int y)
     {
         BuildShaders();
     }
-    else
-    {
-        g_control_pressed = (key == CTRL_KEY);
-        g_alt_pressed = (key == ALT_KEY);
-    }
-}
-
-void SpecialUpFunc(int key, int x, int y)
-{
-    g_control_pressed = g_control_pressed ? !(key == CTRL_KEY) : g_control_pressed;
-    g_alt_pressed = g_alt_pressed ? !(key == ALT_KEY) : g_alt_pressed;
 }
 
 void MouseFunc(int button, int state, int x, int y)
@@ -413,17 +400,17 @@ void InitCamera()
 
 void InitSkeleton()
 {
-    engine::animation::Skeleton::CreateSkeleton(g_skeleton, SKELETON_TYPE);
+    engine::animation::Skeleton::CreateSkeleton(g_skeleton, g_skeleton_type);
     InitSkeletonMesh();
 }
 
 void InitSkeletonTransforms()
 {
-    if (SKELETON_TYPE == engine::animation::ESkeletonType::SimpleChain)
+    if (g_skeleton_type == engine::animation::ESkeletonType::SimpleChain)
     {
         engine::animation::Skeleton::InitSimpleChain(g_skeleton);
     }
-    else if (SKELETON_TYPE == engine::animation::ESkeletonType::Humanoid)
+    else if (g_skeleton_type == engine::animation::ESkeletonType::Humanoid)
     {
         engine::animation::Skeleton::InitHumanoid(g_skeleton);
     }
@@ -444,7 +431,7 @@ void InitSkeletonMesh()
         engine::graphics::MeshHelpers::CreateBoxMesh(g_joint_meshes[i], halfWidth);
     }
 
-    if (SKELETON_TYPE == engine::animation::ESkeletonType::Humanoid)
+    if (g_skeleton_type == engine::animation::ESkeletonType::Humanoid)
     {
         g_joint_meshes[engine::animation::Skeleton::LEFT_HAND].SetSelectedColor(engine::graphics::Color::MAGENTA);
         g_joint_meshes[engine::animation::Skeleton::RIGHT_HAND].SetSelectedColor(engine::graphics::Color::MAGENTA);
@@ -511,6 +498,13 @@ void Update(float DeltaSeconds)
     {
         g_r_pressed = false;
         Reset();
+    }
+
+    // Change skeleton
+    if (g_s_pressed)
+    {
+        g_s_pressed = false;
+        ChangeSkeleton();
     }
 
     g_prev_mouse_x = g_curr_mouse_x;
@@ -603,6 +597,16 @@ void Reset()
     g_skeleton->UpdateChain();
 }
 
+void ChangeSkeleton()
+{
+    engine::animation::Skeleton::DestroySkeleton(g_skeleton);
+    g_skeleton_type = g_skeleton_type == engine::animation::ESkeletonType::SimpleChain ? engine::animation::ESkeletonType::Humanoid : engine::animation::ESkeletonType::SimpleChain;
+    InitSkeleton();
+
+    g_target_mesh.GetTransform().position_.x_ = -30.0f;
+    g_target_mesh.GetTransform().position_.y_ = 30.0f;
+}
+
 void HandleMouseDown()
 {
     bool click_consumed = false;
@@ -674,12 +678,12 @@ void SolveFABRIK()
     params.target = g_target_mesh.GetTransform().position_;
     params.skeleton = g_skeleton;
 
-    if (SKELETON_TYPE == engine::animation::ESkeletonType::SimpleChain)
+    if (g_skeleton_type == engine::animation::ESkeletonType::SimpleChain)
     {
         params.root_joint_index = 0;
         params.end_joint_index = g_skeleton->num_joints - 1;
     }
-    else if (SKELETON_TYPE == engine::animation::ESkeletonType::Humanoid)
+    else if (g_skeleton_type == engine::animation::ESkeletonType::Humanoid)
     {
         if (g_selected_end_effector == engine::animation::Skeleton::LEFT_FOOT)
         {
@@ -754,7 +758,7 @@ bool TestMeshesForSelection(const engine::math::Vec2D& i_mouse_screen_space2d, c
             }
         }
 
-        if (SKELETON_TYPE == engine::animation::ESkeletonType::Humanoid &&
+        if (g_skeleton_type == engine::animation::ESkeletonType::Humanoid &&
             g_skeleton->IsEndEffector(g_selected_joint))
         {
             // Deselect previously selected end-effector
